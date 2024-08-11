@@ -40,7 +40,7 @@ def prepare_data(data):
     players.drop(columns=['id', 'team'], inplace=True)
     players.rename(columns={'name': 'team'}, inplace=True)
     players.rename(columns={'now_cost': 'Price'}, inplace=True)
-    players['Price']= players['Price']/10
+    players['Price'] = players['Price'] / 10
     players['selected_by_percent'] = pd.to_numeric(players['selected_by_percent'], errors='coerce')
     players.rename(columns={'selected_by_percent': 'Ownership'}, inplace=True)
     return players, teams
@@ -119,7 +119,7 @@ with col6:
 
 # Page content based on navigation state
 if st.session_state.page == 'Home':
-    st.write("Real-time data updates from the Fantasy Premier League.")
+    st.write("Real-time data updates from the Fantasy Premier League (FPL) API.")
     
     # Create layout for top options
     col1, col2 = st.columns([2, 2])
@@ -133,7 +133,7 @@ if st.session_state.page == 'Home':
     st.subheader("Top Players by Total Points")
     
     fig = px.bar(
-        players.sort_values(by='total_points', ascending=False).head(20),
+        st.session_state.players.sort_values(by='total_points', ascending=False).head(50),
         x='second_name',
         y='total_points',
         color='team',
@@ -148,18 +148,16 @@ if st.session_state.page == 'Home':
     st.subheader("Player Detailed Statistics")
 
     num_players = st.slider("Number of Players to Display:", min_value=5, max_value=total_players, value=10)
-    sort_by = st.selectbox("Sort By:", options=['Minutes', 'Total Points', 'Goals Scored', 'Assists', 'Clean Sheets', 'Ownership','Price'])
-    
+    sort_by = st.selectbox("Sort By:", options=['Minutes', 'Total Points', 'Goals Scored', 'Assists', 'Clean Sheets', 'Ownership', 'Price'])
 
-
-    detailed_players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'Ownership', 'Price']]
+    detailed_players = st.session_state.players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'Ownership', 'Price']]
     
     if sort_by == 'Minutes':
         detailed_players = detailed_players.sort_values(by='minutes', ascending=False)
     elif sort_by == 'Total Points':
         detailed_players = detailed_players.sort_values(by='total_points', ascending=False)
     elif sort_by == 'Goals Scored':
-        detailed_players = detailed_players.sort_values(by= 'goals_scored', ascending=False)
+        detailed_players = detailed_players.sort_values(by='goals_scored', ascending=False)
     elif sort_by == 'Assists':
         detailed_players = detailed_players.sort_values(by='assists', ascending=False)
     elif sort_by == 'Clean Sheets':
