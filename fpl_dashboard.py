@@ -119,7 +119,7 @@ with col6:
 
 # Page content based on navigation state
 if st.session_state.page == 'Home':
-    st.write("Real-time data updates from the Fantasy Premier League (FPL) API.")
+    st.write("Real-time data updates from the Fantasy Premier League.")
     
     # Create layout for top options
     col1, col2 = st.columns([2, 2])
@@ -133,7 +133,7 @@ if st.session_state.page == 'Home':
     st.subheader("Top Players by Total Points")
     
     fig = px.bar(
-        players.sort_values(by='total_points', ascending=False).head(50),
+        players.sort_values(by='total_points', ascending=False).head(20),
         x='second_name',
         y='total_points',
         color='team',
