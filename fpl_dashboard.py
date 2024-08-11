@@ -40,7 +40,7 @@ def prepare_data(data):
     players.drop(columns=['id', 'team'], inplace=True)
     players.rename(columns={'name': 'team'}, inplace=True)
     players.rename(columns={'now_cost': 'Price'}, inplace=True)
-    players['Price']= players['Price']/10
+    players['Price'] = players['Price'] / 10
     players['selected_by_percent'] = pd.to_numeric(players['selected_by_percent'], errors='coerce')
     players.rename(columns={'selected_by_percent': 'Ownership'}, inplace=True)
     return players, teams
@@ -133,7 +133,7 @@ if st.session_state.page == 'Home':
     st.subheader("Top Players by Total Points")
     
     fig = px.bar(
-        players.sort_values(by='total_points', ascending=False).head(50),
+        st.session_state.players.sort_values(by='total_points', ascending=False).head(50),
         x='second_name',
         y='total_points',
         color='team',
@@ -148,18 +148,16 @@ if st.session_state.page == 'Home':
     st.subheader("Player Detailed Statistics")
 
     num_players = st.slider("Number of Players to Display:", min_value=5, max_value=total_players, value=10)
-    sort_by = st.selectbox("Sort By:", options=['Minutes', 'Total Points', 'Goals Scored', 'Assists', 'Clean Sheets', 'Ownership','Price'])
-    
+    sort_by = st.selectbox("Sort By:", options=['Minutes', 'Total Points', 'Goals Scored', 'Assists', 'Clean Sheets', 'Ownership', 'Price'])
 
-
-    detailed_players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'Ownership', 'Price']]
+    detailed_players = st.session_state.players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'Ownership', 'Price']]
     
     if sort_by == 'Minutes':
         detailed_players = detailed_players.sort_values(by='minutes', ascending=False)
     elif sort_by == 'Total Points':
         detailed_players = detailed_players.sort_values(by='total_points', ascending=False)
     elif sort_by == 'Goals Scored':
-        detailed_players = detailed_players.sort_values(by= 'goals_scored', ascending=False)
+        detailed_players = detailed_players.sort_values(by='goals_scored', ascending=False)
     elif sort_by == 'Assists':
         detailed_players = detailed_players.sort_values(by='assists', ascending=False)
     elif sort_by == 'Clean Sheets':
@@ -181,8 +179,8 @@ if st.session_state.page == 'Home':
     
     top_n = 20
 
-    price_form_df = players[['second_name',  'bonus', 'Ownership','Price']].sort_values(by='Price', ascending=False).head(top_n)
-    price_form_df = price_form_df.rename(columns={'selected_by_percent': 'ownership'})
+    price_form_df = st.session_state.players[['second_name', 'bonus', 'Ownership', 'Price']].sort_values(by='Price', ascending=False).head(top_n)
+    price_form_df = price_form_df.rename(columns={'Ownership': 'ownership'})
     price_colors = '#1f77b4'
     bonus_colors = '#ff7f0e'
     ownership_colors = '#2ca02c'
@@ -205,7 +203,7 @@ if st.session_state.page == 'Home':
 
     fig_combined.add_trace(go.Bar(
         x=price_form_df['second_name'],
-        y=price_form_df['Ownership'],
+        y=price_form_df['ownership'],
         name='Ownership',
         marker_color=ownership_colors
     ))
@@ -222,135 +220,99 @@ if st.session_state.page == 'Home':
 
 elif st.session_state.page == 'Compare Players':
     st.header("Compare Players")
+    st.write("Compare the statistics of different players.")
 
-    player1_name = st.selectbox("Select Player 1", options=players['second_name'].unique())
-    player2_name = st.selectbox("Select Player 2", options=players['second_name'].unique())
+    player_options = st.session_state.players['second_name'].tolist()
+    selected_players = st.multiselect("Select Players to Compare:", options=player_options, default=st.session_state.comparison_players)
+    st.session_state.comparison_players = selected_players
 
-    if player1_name and player2_name:
-        player1_data = players[players['second_name'] == player1_name].iloc[0]
-        player2_data = players[players['second_name'] == player2_name].iloc[0]
+    if len(selected_players) >= 2:
+        comparison_df = st.session_state.players[st.session_state.players['second_name'].isin(selected_players)]
 
-        metrics = ['total_points', 'goals_scored', 'assists', 'clean_sheets', 'minutes', 'yellow_cards', 'red_cards','Ownership','Price']
-        player1_values = [player1_data[metric] for metric in metrics]
-        player2_values = [player2_data[metric] for metric in metrics]
-
-        comparison_df = pd.DataFrame({
-            'Metric': metrics,
-            player1_name: player1_values,
-            player2_name: player2_values
-        })
-
-        fig_comparison = px.bar(comparison_df, x='Metric', y=[player1_name, player2_name],
-                               title=f'Comparison between {player1_name} and {player2_name}',
-                               labels={'Metric': 'Metric', 'value': 'Value'},
-                               height=500,
-                               color_discrete_sequence=['#ef2213', '#20ef13'])
-        
-        fig_comparison.update_layout(template="plotly_dark")
-
-        st.plotly_chart(fig_comparison)
+        fig_comp = px.line(
+            comparison_df,
+            x='second_name',
+            y=['total_points', 'goals_scored', 'assists', 'clean_sheets', 'minutes'],
+            color='second_name',
+            markers=True,
+            title='Player Comparison'
+        )
+        fig_comp.update_layout(template="plotly_dark")
+        st.plotly_chart(fig_comp)
+    else:
+        st.warning("Please select at least two players for comparison.")
 
 elif st.session_state.page == 'Search for a Player':
     st.header("Search for a Player")
-
-    search_query = st.text_input("Enter Player Name")
-    if search_query:
-        search_results = players[players['second_name'].str.contains(search_query, case=False, na=False)]
-        if not search_results.empty:
-            st.write(search_results)
+    player_name = st.text_input("Enter Player Name:")
+    
+    if player_name:
+        search_df = st.session_state.players[st.session_state.players['second_name'].str.contains(player_name, case=False)]
+        
+        if not search_df.empty:
+            st.write("Search Results:")
+            st.dataframe(search_df)
         else:
             st.write("No players found.")
 
 elif st.session_state.page == 'Compare Teams':
     st.header("Compare Teams")
-
-    team1_name = st.selectbox("Select Team 1", options=teams['name'].unique())
-    team2_name = st.selectbox("Select Team 2", options=teams['name'].unique())
-
-    if team1_name and team2_name:
-        team1_players = players[players['team'] == team1_name]
-        team2_players = players[players['team'] == team2_name]
-
-        team1_stats = team1_players[['total_points', 'goals_scored', 'assists', 'clean_sheets']].sum()
-        team2_stats = team2_players[['total_points', 'goals_scored', 'assists', 'clean_sheets']].sum()
-
-        stats_df = pd.DataFrame({
-            'Metric': ['Total Points', 'Goals Scored', 'Assists', 'Clean Sheets'],
-            team1_name: team1_stats.values,
-            team2_name: team2_stats.values
-        })
-
-        fig_team_comparison = px.bar(stats_df, x='Metric', y=[team1_name, team2_name],
-                                    title=f'Comparison between {team1_name} and {team2_name}',
-                                    labels={'Metric': 'Metric', 'value': 'Value'},
-                                    height=500,
-                                    color_discrete_sequence=['#ef2213', '#20ef13'])
-        fig_team_comparison.update_layout(template="plotly_dark")
-
-        st.plotly_chart(fig_team_comparison)
+    st.write("Compare team statistics.")
+    
+    team_options = st.session_state.teams['name'].tolist()
+    selected_teams = st.multiselect("Select Teams to Compare:", options=team_options)
+    
+    if len(selected_teams) >= 2:
+        team_stats = st.session_state.players[st.session_state.players['team'].isin(selected_teams)]
+        team_stats_summary = team_stats.groupby('team').agg({
+            'total_points': 'sum',
+            'goals_scored': 'sum',
+            'assists': 'sum',
+            'clean_sheets': 'sum'
+        }).reset_index()
+        
+        fig_team_comp = px.bar(
+            team_stats_summary,
+            x='team',
+            y=['total_points', 'goals_scored', 'assists', 'clean_sheets'],
+            title='Team Comparison'
+        )
+        fig_team_comp.update_layout(template="plotly_dark")
+        st.plotly_chart(fig_team_comp)
+    else:
+        st.warning("Please select at least two teams for comparison.")
 
 elif st.session_state.page == 'Search for a Team':
     st.header("Search for a Team")
-
-    search_query = st.text_input("Enter Team Name")
-    if search_query:
-        search_results = teams[teams['name'].str.contains(search_query, case=False, na=False)]
-        if not search_results.empty:
-            st.write(search_results)
+    team_name = st.text_input("Enter Team Name:")
+    
+    if team_name:
+        search_teams_df = st.session_state.teams[st.session_state.teams['name'].str.contains(team_name, case=False)]
+        
+        if not search_teams_df.empty:
+            st.write("Search Results:")
+            st.dataframe(search_teams_df)
         else:
             st.write("No teams found.")
 
 elif st.session_state.page == 'Fixtures':
     st.header("Fixtures")
-
-    # Fetch and display fixtures
-    fixtures_url = "https://fantasy.premierleague.com/api/fixtures/"
+    
     try:
+        fixtures_url = "https://fantasy.premierleague.com/api/fixtures/"
         response = requests.get(fixtures_url)
         response.raise_for_status()
         fixtures = response.json()
         fixtures_df = pd.DataFrame(fixtures)
-
-        # Convert datetime and add date and time columns
+        
         fixtures_df['kickoff_time'] = pd.to_datetime(fixtures_df['kickoff_time'])
-        fixtures_df['date'] = fixtures_df['kickoff_time'].dt.date
-        fixtures_df['time'] = fixtures_df['kickoff_time'].dt.strftime('%H:%M')  # Format time as HH:MM
-
-        # Map team IDs to team names using the teams DataFrame
-        team_id_to_name = dict(teams[['id', 'name']].values)
-        fixtures_df['team_h'] = fixtures_df['team_h'].map(team_id_to_name)
-        fixtures_df['team_a'] = fixtures_df['team_a'].map(team_id_to_name)
-
-        # Rename columns
-        fixtures_df = fixtures_df.rename(columns={'team_h': 'Home', 'team_a': 'Away'})
+        fixtures_df['week'] = fixtures_df['kickoff_time'].dt.isocalendar().week
+        fixtures_df['year'] = fixtures_df['kickoff_time'].dt.year
+        fixtures_df = fixtures_df[['week', 'year', 'team_a', 'team_h', 'kickoff_time']]
         
-        # Add useful columns
-        fixtures_df['Home Score'] = fixtures_df.get('team_h_score', '-').fillna('-')
-        fixtures_df['Away Score'] = fixtures_df.get('team_a_score', '-').fillna('-')
-        
-        # Check if 'status' or similar column exists
-        if 'status' in fixtures_df.columns:
-            fixtures_df['Status'] = fixtures_df['status']
-        else:
-            fixtures_df['Status'] = 'N/A'  # Default value if 'status' column doesn't exist
-
-        # Select columns to display
-        fixtures_df = fixtures_df[['date', 'time', 'Home', 'Away', 'Home Score', 'Away Score', 'Status']]
-
-        # Team filter
-        st.subheader("Filter by Team")
-        selected_team = st.selectbox("Select Team:", options=['All'] + sorted(teams['name'].unique()))
-
-        # Apply team filter
-        if selected_team != 'All':
-            filtered_fixtures = fixtures_df[(fixtures_df['Home'] == selected_team) | (fixtures_df['Away'] == selected_team)]
-        else:
-            filtered_fixtures = fixtures_df
-
-        # Display filtered fixtures in a table
-        st.write("**Fixtures Table**")
-        st.dataframe(filtered_fixtures, width=800)  # Adjust the width as needed
-
+        st.write("Fixtures Calendar:")
+        st.dataframe(fixtures_df)
+    
     except requests.RequestException as e:
         st.error(f"Error fetching fixtures: {e}")
 
