@@ -138,7 +138,7 @@ if st.session_state.page == 'Home':
         y='total_points',
         color='team',
         color_discrete_map=st.session_state.team_colors,
-        title="Top 50 Players by Total Points",
+        title="Top Players by Total Points",
         labels={'second_name': 'Player', 'total_points': 'Total Points'},
         height=500
     )
@@ -179,8 +179,8 @@ if st.session_state.page == 'Home':
     
     top_n = 20
 
-    price_form_df = players[['second_name',  'bonus', 'Ownership','Price']].sort_values(by='Price', ascending=False).head(top_n)
-    price_form_df = price_form_df.rename(columns={'selected_by_percent': 'ownership'})
+    price_form_df = st.session_state.players[['second_name', 'bonus', 'Ownership', 'Price']].sort_values(by='Price', ascending=False).head(top_n)
+    price_form_df = price_form_df.rename(columns={'Ownership': 'ownership'})
     price_colors = '#1f77b4'
     bonus_colors = '#ff7f0e'
     ownership_colors = '#2ca02c'
@@ -203,7 +203,7 @@ if st.session_state.page == 'Home':
 
     fig_combined.add_trace(go.Bar(
         x=price_form_df['second_name'],
-        y=price_form_df['Ownership'],
+        y=price_form_df['ownership'],
         name='Ownership',
         marker_color=ownership_colors
     ))
@@ -217,6 +217,7 @@ if st.session_state.page == 'Home':
     )
 
     st.plotly_chart(fig_combined)
+
 
 elif st.session_state.page == 'Compare Players':
     st.header("Compare Players")
