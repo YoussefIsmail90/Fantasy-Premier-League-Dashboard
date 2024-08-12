@@ -189,10 +189,12 @@ if st.session_state.page == 'Home':
 
     fig_combined.add_trace(go.Bar(
         x=price_form_df['second_name'],
-        y=price_form_df['Price'],
-        name='Price',
-        marker_color=price_colors
+        y=price_form_df['ownership'],
+        name='Ownership',
+        marker_color=ownership_colors
     ))
+
+    
 
     fig_combined.add_trace(go.Bar(
         x=price_form_df['second_name'],
@@ -203,10 +205,12 @@ if st.session_state.page == 'Home':
 
     fig_combined.add_trace(go.Bar(
         x=price_form_df['second_name'],
-        y=price_form_df['ownership'],
-        name='Ownership',
-        marker_color=ownership_colors
+        y=price_form_df['Price'],
+        name='Price',
+        marker_color=price_colors
     ))
+
+    
 
     fig_combined.update_layout(
         barmode='group',
