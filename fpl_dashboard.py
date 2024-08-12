@@ -40,6 +40,8 @@ def prepare_data(data):
     players.drop(columns=['id', 'team'], inplace=True)
     players.rename(columns={'name': 'team'}, inplace=True)
     players.rename(columns={'now_cost': 'Price'}, inplace=True)
+    players.rename(columns={'minutes': 'Hours'}, inplace=True)
+    players['Hours'] = players['Hours'] / 60
     players['Price'] = players['Price'] / 10
     players['selected_by_percent'] = pd.to_numeric(players['selected_by_percent'], errors='coerce')
     players.rename(columns={'selected_by_percent': 'Ownership'}, inplace=True)
@@ -148,12 +150,12 @@ if st.session_state.page == 'Home':
     st.subheader("Player Detailed Statistics")
 
     num_players = st.slider("Number of Players to Display:", min_value=5, max_value=total_players, value=10)
-    sort_by = st.selectbox("Sort By:", options=['Minutes', 'Total Points', 'Goals Scored', 'Assists', 'Clean Sheets', 'Ownership', 'Price'])
+    sort_by = st.selectbox("Sort By:", options=['Hours', 'Total Points', 'Goals Scored', 'Assists', 'Clean Sheets', 'Ownership', 'Price'])
 
-    detailed_players = st.session_state.players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'Ownership', 'Price']]
+    detailed_players = st.session_state.players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'Hours', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'Ownership', 'Price']]
     
-    if sort_by == 'Minutes':
-        detailed_players = detailed_players.sort_values(by='minutes', ascending=False)
+    if sort_by == 'Hours':
+        detailed_players = detailed_players.sort_values(by='Hours', ascending=False)
     elif sort_by == 'Total Points':
         detailed_players = detailed_players.sort_values(by='total_points', ascending=False)
     elif sort_by == 'Goals Scored':
@@ -233,7 +235,7 @@ elif st.session_state.page == 'Compare Players':
         player1_data = players[players['second_name'] == player1_name].iloc[0]
         player2_data = players[players['second_name'] == player2_name].iloc[0]
 
-        metrics = ['total_points', 'goals_scored', 'assists', 'clean_sheets', 'minutes', 'yellow_cards', 'red_cards','Ownership','Price']
+        metrics = ['total_points', 'goals_scored', 'assists', 'clean_sheets', 'Hours', 'yellow_cards', 'red_cards','Ownership','Price']
         player1_values = [player1_data[metric] for metric in metrics]
         player2_values = [player2_data[metric] for metric in metrics]
 
@@ -352,7 +354,7 @@ elif st.session_state.page == 'Fixtures':
 
         # Display filtered fixtures in a table
         st.write("**Fixtures Table**")
-        st.dataframe(filtered_fixtures, width=800)  # Adjust the width as needed
+        st.dataframe(filtered_fixtures, width=1000)  # Adjust the width as needed
 
     except requests.RequestException as e:
         st.error(f"Error fetching fixtures: {e}")
