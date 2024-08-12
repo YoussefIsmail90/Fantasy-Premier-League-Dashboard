@@ -341,7 +341,7 @@ elif st.session_state.page == 'Fixtures':
             fixtures_df['Status'] = 'N/A'  # Default value if 'status' column doesn't exist
 
         # Select columns to display
-        fixtures_df = fixtures_df[['date', 'time', 'Home', 'Away', 'Home Score', 'Away Score', 'Status']]
+        fixtures_df = fixtures_df[['Date', 'Time', 'Home', 'Away', 'Home Score', 'Away Score', 'Status']]
 
         # Team filter
         st.subheader("Filter by Team")
