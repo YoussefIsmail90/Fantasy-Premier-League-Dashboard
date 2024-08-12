@@ -179,7 +179,7 @@ if st.session_state.page == 'Home':
     
     top_n = 20
 
-    price_form_df = st.session_state.players[['second_name', 'bonus', 'Ownership', 'Price']].sort_values(by='Price', ascending=False).head(top_n)
+    price_form_df = st.session_state.players[['second_name', 'bonus', 'Ownership', 'Price']].sort_values(by='Ownership', ascending=False).head(top_n)
     price_form_df = price_form_df.rename(columns={'Ownership': 'ownership'})
     price_colors = '#1f77b4'
     bonus_colors = '#ff7f0e'
@@ -210,7 +210,7 @@ if st.session_state.page == 'Home':
 
     fig_combined.update_layout(
         barmode='group',
-        title='Top Players by Price, Bonus Points, and Ownership',
+        title='Top Players by Ownership, Bonus Points, and Price',
         xaxis_title='Player',
         yaxis_title='Value',
         template='plotly_dark'
