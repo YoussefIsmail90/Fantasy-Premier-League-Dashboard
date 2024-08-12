@@ -121,7 +121,7 @@ with col6:
 
 # Page content based on navigation state
 if st.session_state.page == 'Home':
-    st.write("Real-time data updates from the Fantasy Premier League (FPL) API.")
+    st.write("Real-time data updates from the Fantasy Premier League.")
     
     # Create layout for top options
     col1, col2 = st.columns([2, 2])
@@ -318,8 +318,8 @@ elif st.session_state.page == 'Fixtures':
 
         # Convert datetime and add date and time columns
         fixtures_df['kickoff_time'] = pd.to_datetime(fixtures_df['kickoff_time'])
-        fixtures_df['date'] = fixtures_df['kickoff_time'].dt.date
-        fixtures_df['time'] = fixtures_df['kickoff_time'].dt.strftime('%H:%M')  # Format time as HH:MM
+        fixtures_df['Date'] = fixtures_df['kickoff_time'].dt.date
+        fixtures_df['Time'] = fixtures_df['kickoff_time'].dt.strftime('%H:%M')  # Format time as HH:MM
 
         # Map team IDs to team names using the teams DataFrame
         team_id_to_name = dict(teams[['id', 'name']].values)
@@ -328,6 +328,7 @@ elif st.session_state.page == 'Fixtures':
 
         # Rename columns
         fixtures_df = fixtures_df.rename(columns={'team_h': 'Home', 'team_a': 'Away'})
+        
         
         # Add useful columns
         fixtures_df['Home Score'] = fixtures_df.get('team_h_score', '-').fillna('-')
