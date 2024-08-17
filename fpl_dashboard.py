@@ -333,12 +333,13 @@ elif st.session_state.page == 'Fixtures':
         # Add useful columns
         fixtures_df['Home Score'] = fixtures_df.get('team_h_score', '-').fillna('-')
         fixtures_df['Away Score'] = fixtures_df.get('team_a_score', '-').fillna('-')
-        
+        fixtures_df['Home Score'] = fixtures_df['Home Score'] / 10
+        fixtures_df['Away Score'] = fixtures_df['Away Score'] / 10
         # Check if 'status' or similar column exists
-        if 'status' in fixtures_df.columns:
-            fixtures_df['Status'] = fixtures_df['status']
-        else:
-            fixtures_df['Status'] = 'N/A'  # Default value if 'status' column doesn't exist
+        # if 'status' in fixtures_df.columns:
+        #     fixtures_df['Status'] = fixtures_df['status']
+        # else:
+        #     fixtures_df['Status'] = 'N/A'  # Default value if 'status' column doesn't exist
 
         # Select columns to display
         fixtures_df = fixtures_df[['Date', 'Time', 'Home', 'Away', 'Home Score', 'Away Score', 'Status']]
