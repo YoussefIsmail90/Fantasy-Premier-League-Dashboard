@@ -325,12 +325,13 @@ elif st.session_state.page == 'Fixtures':
         team_id_to_name = dict(teams[['id', 'name']].values)
         fixtures_df['team_h'] = fixtures_df['team_h'].map(team_id_to_name)
         fixtures_df['team_a'] = fixtures_df['team_a'].map(team_id_to_name)
-
+        
         # Rename columns
         fixtures_df = fixtures_df.rename(columns={'team_h': 'Home', 'team_a': 'Away'})
         
         
         # Add useful columns
+
         fixtures_df['Home Score'] = fixtures_df.get('team_h_score', '-').fillna('-')
         fixtures_df['Away Score'] = fixtures_df.get('team_a_score', '-').fillna('-')
         fixtures_df['Home Score'] = pd.to_numeric(fixtures_df['Home Score'], errors='coerce')
