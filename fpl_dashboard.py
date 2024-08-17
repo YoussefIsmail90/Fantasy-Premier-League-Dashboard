@@ -333,6 +333,9 @@ elif st.session_state.page == 'Fixtures':
         # Add useful columns
         fixtures_df['Home Score'] = fixtures_df.get('team_h_score', '-').fillna('-')
         fixtures_df['Away Score'] = fixtures_df.get('team_a_score', '-').fillna('-')
+        fixtures_df['Home Score'] = pd.to_numeric(fixtures_df['Home Score'], errors='coerce')
+        fixtures_df['Away Score'] = pd.to_numeric(fixtures_df['Away Score'], errors='coerce')
+
         fixtures_df['Home Score'] = fixtures_df['Home Score'] / 10
         fixtures_df['Away Score'] = fixtures_df['Away Score'] / 10
         # Check if 'status' or similar column exists
