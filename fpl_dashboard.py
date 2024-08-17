@@ -331,6 +331,7 @@ elif st.session_state.page == 'Fixtures':
         
         
         # Add useful columns
+        st.write("Available columns in fixtures_df:", fixtures_df.columns)
 
         fixtures_df['Home Score'] = fixtures_df.get('team_h_score', '-').fillna('-')
         fixtures_df['Away Score'] = fixtures_df.get('team_a_score', '-').fillna('-')
