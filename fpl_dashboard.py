@@ -174,22 +174,10 @@ if st.session_state.page == 'Home':
     
     ranked_players = rank_players(st.session_state.players)
     
-    # Define positions
-    positions = {
-        'Goalkeeper': 1,
-        'Defender': 4,
-        'Midfielder': 4,
-        'Forward': 2
-    }
     
-    # Select players based on position
-    best_players = []
-    for pos, count in positions.items():
-        position_players = ranked_players[ranked_players['position'] == pos].head(count)
-        best_players.append(position_players)
+    # Select the top players for the next game week
+    top_players = ranked_players.head(11)
     
-    best_11 = pd.concat(best_players)
-    best_11 = best_11[['first_name', 'second_name', 'team', 'position', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals', 'expected_assists']]
     
     st.write(f"**Best 11 Players for the Next Game Week**")
     st.dataframe(best_11)
