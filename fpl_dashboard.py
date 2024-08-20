@@ -140,16 +140,19 @@ if st.session_state.page == 'Home':
         
 
 
-    
-    st.header("Best 11 Players for the Next Game Week")
 
+    st.header("Best 11 Players for the Next Game Week")
+    
     # Ensure the necessary columns are present
-    required_columns = ['goals_scored', 'assists', 'clean_sheets', 'expected_goals_conceded', 'influence',
-                        'creativity', 'threat', 'expected_goals', 'expected_assists']
-    for col in required_columns:
-        if col not in st.session_state.players.columns:
-            st.error(f"Missing column: {col}")
-            st.stop()
+    required_columns = [
+        'goals_scored', 'assists', 'clean_sheets', 'expected_goals_conceded',
+        'influence', 'creativity', 'threat', 'expected_goals', 'expected_assists'
+    ]
+    missing_columns = [col for col in required_columns if col not in st.session_state.players.columns]
+    
+    if missing_columns:
+        st.error(f"Missing columns: {', '.join(missing_columns)}")
+        st.stop()
     
     # Convert columns to numeric
     for col in required_columns:
@@ -160,26 +163,32 @@ if st.session_state.page == 'Home':
     
     # Rank players based on metrics
     def rank_players(df):
-        df['score'] = ( 
-                       df['goals_scored'] * 3 +
-                       df['assists'] * 3 +
-                       df['clean_sheets'] * 4 -
-                       df['expected_goals_conceded'] * 1 +
-                       df['influence'] * 0.2 +
-                       df['creativity'] * 0.2 +
-                       df['threat'] * 0.2 +
-                       df['expected_goals'] * 2 +
-                       df['expected_assists'] * 2)
+        df['score'] = (
+            df['goals_scored'] * 3 +
+            df['assists'] * 3 +
+            df['clean_sheets'] * 4 -
+            df['expected_goals_conceded'] * 1 +
+            df['influence'] * 0.2 +
+            df['creativity'] * 0.2 +
+            df['threat'] * 0.2 +
+            df['expected_goals'] * 2 +
+            df['expected_assists'] * 2
+        )
         return df.sort_values(by='score', ascending=False)
     
     ranked_players = rank_players(st.session_state.players)
     
-    
     # Select the top players for the next game week
     top_players = ranked_players.head(11)
     
+    # Display the top players
+    st.write("**Best 11 Players for the Next Game Week:**")
+    st.write(top_players[['name', 'score']])  # Adjust columns as needed
     
-    st.write(f"**Best 11 Players for the Next Game Week**")
+    # Visualization
+    st.subheader("Top 11 Players by Score")
+    st.bar_chart(top_players[['name', 'score']].set_index('name'))
+
     
 
 
