@@ -357,4 +357,84 @@ elif st.session_state.page == 'Fixtures':
         st.dataframe(filtered_fixtures, width=1200)  # Adjust the width as needed
 
     except requests.RequestException as e:
-        st.error(f"Error fetching fixtures: {e}")
+        st.error(f"Error fetching fixtures: {e}") 
+# Define the number of players to select for each position
+positions_limits = {
+    'GKP': 1,
+    'DEF': 4,
+    'MID': 4,
+    'FWD': 2
+}
+
+# Define weights for each metric
+weights = {
+    'form': 0.4,
+    'fixture_difficulty': 0.2,
+    'influence': 0.15,
+    'threat': 0.15,
+    'creativity': 0.1
+}
+
+# Create a function to calculate the composite score
+def calculate_composite_score(player):
+    # Normalize fixture difficulty so that a lower difficulty score gives a higher rating
+    fixture_score = 6 - player['fixture_difficulty']  # Assuming difficulty is rated from 1 to 5
+    composite_score = (
+        weights['form'] * player['form'] +
+        weights['fixture_difficulty'] * fixture_score +
+        weights['influence'] * player['influence'] +
+        weights['threat'] * player['threat'] +
+        weights['creativity'] * player['creativity']
+    )
+    return composite_score
+
+# Create a function to get the best players based on the composite score
+def get_best_11(players):
+    # Calculate composite scores for all players
+    players['composite_score'] = players.apply(calculate_composite_score, axis=1)
+    
+    # Sort players by composite score
+    best_11 = []
+
+    # Group by position
+    for position, limit in positions_limits.items():
+        position_players = players[players['element_type'] == position]
+        position_players = position_players.sort_values(by=['composite_score'], ascending=False).head(limit)
+        best_11.append(position_players)
+
+    # Concatenate all the positions into one DataFrame
+    best_11_df = pd.concat(best_11)
+    return best_11_df
+
+# Get the best 11 players for the next game week
+best_11_players = get_best_11(st.session_state.players)
+
+# Display the best 11 players in the Streamlit app
+if st.session_state.page == 'Best 11':
+    st.header("Best 11 Players for Next Game Week")
+
+    st.subheader("Selected Players")
+    st.write("These are the top 11 players you should consider for the upcoming game week based on their form, fixture difficulty, influence, threat, and creativity.")
+    
+    # Display the players in a table
+    st.dataframe(best_11_players[['second_name', 'team', 'form', 'fixture_difficulty', 'influence', 'threat', 'creativity', 'composite_score']])
+
+    # Optionally, visualize the best 11 players with a bar chart
+    fig_best_11 = px.bar(
+        best_11_players,
+        x='second_name',
+        y='composite_score',
+        color='team',
+        color_discrete_map=st.session_state.team_colors,
+        title="Best 11 Players by Composite Score",
+        labels={'second_name': 'Player', 'composite_score': 'Composite Score'},
+        height=500
+    )
+    fig_best_11.update_layout(template="plotly_dark")
+    st.plotly_chart(fig_best_11)
+
+# Add a navigation button for the Best 11 Players page
+with col6:
+    if st.button("Best 11 Players"):
+        navigate_to("Best 11")
+
