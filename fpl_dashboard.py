@@ -143,35 +143,29 @@ if st.session_state.page == 'Home':
     st.header("Best 11 Players for the Next Game Week")
 
     # Ensure the necessary columns are present
-    required_columns = ['minutes', 'goals_scored', 'assists', 'clean_sheets', 'goals_conceded', 'influence',
-                        'creativity', 'threat', 'expected_goals', 'expected_assists', 'position']
-    for col in required_columns:
-        if col not in st.session_state.players.columns:
-            st.error(f"Missing column: {col}")
-            st.stop()
+    # Ensure the necessary columns are present
+required_columns = ['Hours', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals_conceded', 'influence',
+                    'creativity', 'threat', 'expected_goals', 'expected_assists']
+for col in required_columns:
+    if col not in st.session_state.players.columns:
+        st.error(f"Missing column: {col}")
+        st.stop()
 
-    # Define positions
-    positions = {
-        'Goalkeeper': 1,
-        'Defender': 4,
-        'Midfielder': 3,
-        'Forward': 2
-    }
+# Rank players based on metrics
+def rank_players(df):
+    # Combine metrics into a single score
+    df['score'] = (df['Hours'] * 0.1 +
+                   df['goals_scored'] * 3 +
+                   df['assists'] * 3 +
+                   df['clean_sheets'] * 4 -
+                   df['expected_goals_conceded'] * 1 +
+                   df['influence'] * 0.2 +
+                   df['creativity'] * 0.2 +
+                   df['threat'] * 0.2 +
+                   df['expected_goals'] * 2 +
+                   df['expected_assists'] * 2)
+    return df.sort_values(by='score', ascending=False)
 
-    # Rank players based on metrics
-    def rank_players(df):
-        # Combine metrics into a single score
-        df['score'] = (df['minutes'] * 0.1 +
-                       df['goals_scored'] * 3 +
-                       df['assists'] * 3 +
-                       df['clean_sheets'] * 4 -
-                       df['goals_conceded'] * 1 +
-                       df['influence'] * 0.2 +
-                       df['creativity'] * 0.2 +
-                       df['threat'] * 0.2 +
-                       df['expected_goals'] * 2 +
-                       df['expected_assists'] * 2)
-        return df.sort_values(by='score', ascending=False)
 
     ranked_players = rank_players(st.session_state.players)
     st.write(ranked_players)
