@@ -136,43 +136,73 @@ if st.session_state.page == 'Home':
     
     st.header("Best 11 Players for the Next Game Week")
 
-    # Test data
-    test_data = {
-        'first_name': ['Player1', 'Player2'],
-        'second_name': ['Last1', 'Last2'],
-        'team': ['TeamA', 'TeamB'],
-        'position': ['Midfielder', 'Forward'],
-        'total_points': [50, 60],
-        'goals_scored': [5, 7],
-        'assists': [3, 4],
-        'clean_sheets': [1, 2],
-        'expected_goals': [1.2, 1.5],
-        'expected_assists': [0.8, 1.0]
-    }
-    test_df = pd.DataFrame(test_data)
-    st.write("Test DataFrame:", test_df)
-    
-    # Rank players
-    def simple_rank_players(df):
-        df['score'] = df['total_points']
-        return df.sort_values(by='score', ascending=False)
-    
-    ranked_test_df = simple_rank_players(test_df)
-    st.write("Ranked Test DataFrame:", ranked_test_df)
-    
-    # Display top players
-    best_11 = ranked_test_df.head(11)
-    st.write("Best 11 DataFrame:", best_11)
+# Ensure the necessary columns are present
+required_columns = ['minutes', 'goals_scored', 'assists', 'clean_sheets', 'goals_conceded', 'influence',
+                    'creativity', 'threat', 'expected_goals', 'expected_assists', 'position']
+for col in required_columns:
+    if col not in st.session_state.players.columns:
+        st.error(f"Missing column: {col}")
+        st.stop()
 
-    # Visualization
-    fig_best_11 = px.bar(
-        best_11,
-        x='second_name',
-        y='total_points',
-        title="Top 11 Players by Total Points",
-        labels={'second_name': 'Player', 'total_points': 'Total Points'}
-    )
-    st.plotly_chart(fig_best_11)
+# Define positions
+positions = {
+    'Goalkeeper': 1,
+    'Defender': 4,
+    'Midfielder': 3,
+    'Forward': 2
+}
+
+# Rank players based on metrics
+def rank_players(df):
+    # Combine metrics into a single score
+    df['score'] = (df['minutes'] * 0.1 +
+                   df['goals_scored'] * 3 +
+                   df['assists'] * 3 +
+                   df['clean_sheets'] * 4 -
+                   df['goals_conceded'] * 1 +
+                   df['influence'] * 0.2 +
+                   df['creativity'] * 0.2 +
+                   df['threat'] * 0.2 +
+                   df['expected_goals'] * 2 +
+                   df['expected_assists'] * 2)
+    return df.sort_values(by='score', ascending=False)
+
+ranked_players = rank_players(st.session_state.players)
+
+# Debug output
+st.write("Ranked Players DataFrame:")
+st.write(ranked_players.head())
+
+# Select players based on position
+best_players = []
+for pos, count in positions.items():
+    position_players = ranked_players[ranked_players['position'] == pos].head(count)
+    best_players.append(position_players)
+
+best_11 = pd.concat(best_players)
+best_11 = best_11[['first_name', 'second_name', 'team', 'position', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals', 'expected_assists']]
+
+# Debug output
+st.write("Best 11 Players DataFrame:")
+st.write(best_11.head())
+
+st.write(f"**Best 11 Players for the Next Game Week**")
+st.dataframe(best_11)
+
+st.subheader("Visualization of Top Players")
+fig_best_11 = px.bar(
+    best_11,
+    x='second_name',
+    y='total_points',
+    color='team',
+    title="Top 11 Players by Total Points",
+    labels={'second_name': 'Player', 'total_points': 'Total Points'},
+    height=500,
+    color_discrete_map=st.session_state.team_colors
+)
+fig_best_11.update_layout(template="plotly_dark")
+st.plotly_chart(fig_best_11)
+
 
 
 
