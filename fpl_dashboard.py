@@ -35,7 +35,13 @@ def fetch_fpl_data():
 def prepare_data(data):
     players = pd.DataFrame(data['elements'])
     teams = pd.DataFrame(data['teams'])
-    fixtures = pd.DataFrame(data['fixtures'])  # Ensure you have fixtures data if needed
+    
+    # Check if fixtures data is present
+    if 'fixtures' in data:
+        fixtures = pd.DataFrame(data['fixtures'])
+    else:
+        fixtures = pd.DataFrame()  # Create an empty DataFrame if fixtures data is not available
+    
     players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 
                        'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 
                        'selected_by_percent', 'influence', 'creativity', 'threat', 'expected_goals', 'expected_assists', 
