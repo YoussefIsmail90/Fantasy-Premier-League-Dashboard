@@ -149,7 +149,7 @@ if st.session_state.page == 'Home':
         if col not in st.session_state.players.columns:
             st.error(f"Missing column: {col}")
             st.stop()
-
+    
     # Define positions
     positions = {
         'Goalkeeper': 1,
@@ -157,7 +157,7 @@ if st.session_state.page == 'Home':
         'Midfielder': 3,
         'Forward': 2
     }
-
+    
     # Rank players based on metrics
     def rank_players(df):
         # Combine metrics into a single score
@@ -172,21 +172,29 @@ if st.session_state.page == 'Home':
                        df['expected_goals'] * 2 +
                        df['expected_assists'] * 2)
         return df.sort_values(by='score', ascending=False)
-
+    
     ranked_players = rank_players(st.session_state.players)
-    st.write(ranked_players)
+    
+    # Debug output
+    st.write("Ranked Players DataFrame:")
+    st.write(ranked_players.head())
+    
     # Select players based on position
     best_players = []
     for pos, count in positions.items():
         position_players = ranked_players[ranked_players['position'] == pos].head(count)
         best_players.append(position_players)
-
+    
     best_11 = pd.concat(best_players)
     best_11 = best_11[['first_name', 'second_name', 'team', 'position', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals', 'expected_assists']]
     
+    # Debug output
+    st.write("Best 11 Players DataFrame:")
+    st.write(best_11.head())
+    
     st.write(f"**Best 11 Players for the Next Game Week**")
     st.dataframe(best_11)
-
+    
     st.subheader("Visualization of Top Players")
     fig_best_11 = px.bar(
         best_11,
@@ -200,6 +208,7 @@ if st.session_state.page == 'Home':
     )
     fig_best_11.update_layout(template="plotly_dark")
     st.plotly_chart(fig_best_11)
+
     
     
     st.subheader("Top Players by Total Points")
