@@ -381,32 +381,44 @@ elif st.session_state.page == 'Best 11 Players':
                'expected_goals_conceded', 'influence', 'creativity', 'threat', 
                'saves', 'bonus']
 
-    # Filter by position
-    position = st.selectbox("Select Position", options=['All'] + list(players['position'].unique()))
-    if position != 'All':
-        filtered_players = players[players['position'] == position]
+    # Check if 'position' column exists
+    if 'position' in players.columns:
+        # Filter by position
+        position = st.selectbox("Select Position", options=['All'] + list(players['position'].unique()))
+        if position != 'All':
+            filtered_players = players[players['position'] == position]
+        else:
+            filtered_players = players
+
+        # Check if all metrics columns are present
+        missing_metrics = [metric for metric in metrics if metric not in filtered_players.columns]
+        if missing_metrics:
+            st.error(f"Missing columns: {', '.join(missing_metrics)}")
+        else:
+            # Calculate total score
+            filtered_players['total_score'] = filtered_players[metrics].sum(axis=1)
+
+            # Sort by the sum of metrics
+            top_11_players = filtered_players.sort_values(by='total_score', ascending=False).head(11)
+
+            st.write(f"Top 11 Players based on selected metrics for position '{position}'")
+            
+            # Display top players
+            fig = px.bar(
+                top_11_players,
+                x='second_name',
+                y='total_score',
+                color='team',
+                color_discrete_map=st.session_state.team_colors,
+                title="Best 11 Players by Metrics",
+                labels={'second_name': 'Player', 'total_score': 'Total Score'},
+                height=500
+            )
+            fig.update_layout(template="plotly_dark")
+            st.plotly_chart(fig)
+            
+            st.subheader("Detailed Player Information")
+            st.write(top_11_players[['first_name', 'second_name', 'team', 'position'] + metrics])
     else:
-        filtered_players = players
+        st.error("The 'position' column is missing in the data.")
 
-    # Sort by the sum of metrics
-    filtered_players['total_score'] = filtered_players[metrics].sum(axis=1)
-    top_11_players = filtered_players.sort_values(by='total_score', ascending=False).head(11)
-
-    st.write(f"Top 11 Players based on selected metrics for position '{position}'")
-    
-    # Display top players
-    fig = px.bar(
-        top_11_players,
-        x='second_name',
-        y='total_score',
-        color='team',
-        color_discrete_map=st.session_state.team_colors,
-        title="Best 11 Players by Metrics",
-        labels={'second_name': 'Player', 'total_score': 'Total Score'},
-        height=500
-    )
-    fig.update_layout(template="plotly_dark")
-    st.plotly_chart(fig)
-    
-    st.subheader("Detailed Player Information")
-    st.write(top_11_players[['first_name', 'second_name', 'team', 'position'] + metrics])
