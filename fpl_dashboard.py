@@ -400,14 +400,14 @@ elif st.session_state.page == 'Best Players':
                 color_discrete_map=st.session_state.team_colors,
                 title="Best Players by Metrics",
                 labels={'web_name': 'Player', 'total_score': 'Total Score'},
-                height=500 , width=1200
+                height=500 
             )
             fig.update_layout(template="plotly_dark")
             fig.update_xaxes(title_text='Player', categoryorder='total descending')  # Ensure x-axis is sorted by total_score
             st.plotly_chart(fig)
             
             st.subheader("Detailed Player Information")
-            st.write(top_11_players[['first_name', 'web_name', 'team', 'position'] + selected_metrics])
+            st.write(top_11_players[['first_name', 'web_name', 'team', 'position'] + selected_metrics],width=1200)
     else:
         st.error("The 'position' column is missing in the data.")
 
