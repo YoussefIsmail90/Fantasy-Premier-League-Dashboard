@@ -373,8 +373,8 @@ elif st.session_state.page == 'Fixtures':
     except requests.RequestException as e:
         st.error(f"Error fetching fixtures: {e}")  
 
-elif st.session_state.page == 'Best 11 Players':
-    st.header("Best 11 Players")
+elif st.session_state.page == 'Best Players':
+    st.header("Best Players")
 
     # Metrics to consider
     metrics = ['expected_goals', 'expected_assists', 
