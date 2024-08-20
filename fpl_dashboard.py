@@ -154,7 +154,7 @@ if st.session_state.page == 'Home':
     # Rank players based on metrics
     def rank_players(df):
         # Combine metrics into a single score
-        df['score'] = (df['Hours'] * 0.1 +
+        df['score'] = ( 
                        df['goals_scored'] * 3 +
                        df['assists'] * 3 +
                        df['clean_sheets'] * 4 -
