@@ -144,27 +144,27 @@ if st.session_state.page == 'Home':
 
     # Ensure the necessary columns are present
     # Ensure the necessary columns are present
-required_columns = ['Hours', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals_conceded', 'influence',
-                    'creativity', 'threat', 'expected_goals', 'expected_assists']
-for col in required_columns:
-    if col not in st.session_state.players.columns:
-        st.error(f"Missing column: {col}")
-        st.stop()
-
-# Rank players based on metrics
-def rank_players(df):
-    # Combine metrics into a single score
-    df['score'] = (df['Hours'] * 0.1 +
-                   df['goals_scored'] * 3 +
-                   df['assists'] * 3 +
-                   df['clean_sheets'] * 4 -
-                   df['expected_goals_conceded'] * 1 +
-                   df['influence'] * 0.2 +
-                   df['creativity'] * 0.2 +
-                   df['threat'] * 0.2 +
-                   df['expected_goals'] * 2 +
-                   df['expected_assists'] * 2)
-    return df.sort_values(by='score', ascending=False)
+    required_columns = ['Hours', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals_conceded', 'influence',
+                        'creativity', 'threat', 'expected_goals', 'expected_assists']
+    for col in required_columns:
+        if col not in st.session_state.players.columns:
+            st.error(f"Missing column: {col}")
+            st.stop()
+    
+    # Rank players based on metrics
+    def rank_players(df):
+        # Combine metrics into a single score
+        df['score'] = (df['Hours'] * 0.1 +
+                       df['goals_scored'] * 3 +
+                       df['assists'] * 3 +
+                       df['clean_sheets'] * 4 -
+                       df['expected_goals_conceded'] * 1 +
+                       df['influence'] * 0.2 +
+                       df['creativity'] * 0.2 +
+                       df['threat'] * 0.2 +
+                       df['expected_goals'] * 2 +
+                       df['expected_assists'] * 2)
+        return df.sort_values(by='score', ascending=False)
 
 
     ranked_players = rank_players(st.session_state.players)
