@@ -188,6 +188,12 @@ if st.session_state.page == 'Home':
     # Visualization
     st.subheader("Top 11 Players by Score")
     st.bar_chart(top_players[['name', 'score']].set_index('name'))
+    # Inspect columns and first few rows
+    st.write("Columns in `top_players` DataFrame:")
+    st.write(top_players.columns)
+    
+    st.write("First few rows of `top_players` DataFrame:")
+    st.write(top_players.head())
 
     
 
