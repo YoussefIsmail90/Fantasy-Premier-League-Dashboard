@@ -35,6 +35,7 @@ def fetch_fpl_data():
 def prepare_data(data):
     players = pd.DataFrame(data['elements'])
     teams = pd.DataFrame(data['teams'])
+    element_types = pd.DataFrame(data['element_types'])
     # players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'selected_by_percent']]
     players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 
                        'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 
@@ -102,7 +103,7 @@ total_players = len(st.session_state.players)
 st.title("Fantasy Premier League Dashboard")
 
 # Create layout for navigation buttons
-col1, col2, col3, col4, col5, col6  = st.columns([1, 1, 1, 1, 1, 1])
+col1, col2, col3, col4, col5, col6 , col7 = st.columns([1, 1, 1, 1, 1, 1, 1])
 
 
 with col1:
@@ -123,6 +124,10 @@ with col5:
 with col6:
     if st.button("Fixtures"):
         navigate_to("Fixtures")
+with col7:
+    if st.button("Best 11 Players"):
+        navigate_to("Best 11 Players")
+
 
 
 # Page content based on navigation state
@@ -361,3 +366,41 @@ elif st.session_state.page == 'Fixtures':
 
     except requests.RequestException as e:
         st.error(f"Error fetching fixtures: {e}")  
+
+elif st.session_state.page == 'Best 11 Players':
+    st.header("Best 11 Players")
+
+    # Metrics to consider
+    metrics = ['expected_goals', 'expected_assists', 'expected_goal_involvements', 
+               'expected_goals_conceded', 'influence', 'creativity', 'threat', 
+               'saves', 'bonus']
+
+    # Filter by position
+    position = st.selectbox("Select Position", options=['All'] + list(players['position'].unique()))
+    if position != 'All':
+        filtered_players = players[players['position'] == position]
+    else:
+        filtered_players = players
+
+    # Sort by the sum of metrics
+    filtered_players['total_score'] = filtered_players[metrics].sum(axis=1)
+    top_11_players = filtered_players.sort_values(by='total_score', ascending=False).head(11)
+
+    st.write(f"Top 11 Players based on selected metrics for position '{position}'")
+    
+    # Display top players
+    fig = px.bar(
+        top_11_players,
+        x='second_name',
+        y='total_score',
+        color='team',
+        color_discrete_map=st.session_state.team_colors,
+        title="Best 11 Players by Metrics",
+        labels={'second_name': 'Player', 'total_score': 'Total Score'},
+        height=500
+    )
+    fig.update_layout(template="plotly_dark")
+    st.plotly_chart(fig)
+    
+    st.subheader("Detailed Player Information")
+    st.write(top_11_players[['first_name', 'second_name', 'team', 'position'] + metrics])
