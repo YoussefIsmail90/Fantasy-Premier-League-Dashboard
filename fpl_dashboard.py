@@ -407,7 +407,7 @@ elif st.session_state.page == 'Best Players':
             st.plotly_chart(fig)
             
             st.subheader("Detailed Player Information")
-            st.subheader("Detailed Player Information")
+            
             st.dataframe(top_11_players[['first_name', 'web_name', 'team', 'position'] + selected_metrics],width=1200)
 
     else:
