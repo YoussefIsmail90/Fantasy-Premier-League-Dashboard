@@ -140,10 +140,7 @@ if st.session_state.page == 'Home':
         
 
 
-    st.header("Best 11 Players for the Next Game Week")
-
-    # Ensure the necessary columns are present
-    # Ensure the necessary columns are present
+    
     st.header("Best 11 Players for the Next Game Week")
 
     # Ensure the necessary columns are present
@@ -153,6 +150,13 @@ if st.session_state.page == 'Home':
         if col not in st.session_state.players.columns:
             st.error(f"Missing column: {col}")
             st.stop()
+    
+    # Convert columns to numeric
+    for col in required_columns:
+        st.session_state.players[col] = pd.to_numeric(st.session_state.players[col], errors='coerce')
+    
+    # Handle missing values
+    st.session_state.players.fillna(0, inplace=True)
     
     # Rank players based on metrics
     def rank_players(df):
@@ -203,6 +207,7 @@ if st.session_state.page == 'Home':
     )
     fig_best_11.update_layout(template="plotly_dark")
     st.plotly_chart(fig_best_11)
+
 
     
     
