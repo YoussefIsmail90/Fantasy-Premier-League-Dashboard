@@ -377,7 +377,7 @@ elif st.session_state.page == 'Best 11 Players':
     st.header("Best 11 Players")
 
     # Metrics to consider
-    metrics = ['expected_goals', 'expected_assists', 'expected_goal_involvements', 
+    metrics = ['expected_goals', 'expected_assists',  
                'expected_goals_conceded', 'influence', 'creativity', 'threat', 
                'saves', 'bonus']
 
