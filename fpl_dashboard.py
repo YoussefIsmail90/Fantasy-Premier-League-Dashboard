@@ -386,25 +386,54 @@ elif st.session_state.page == 'Best Players':
 
     # Check if 'position' column exists
     if 'position' in players.columns:
+        # Fetch fixtures data and process
+        fixtures_url = "https://fantasy.premierleague.com/api/fixtures/"
+        response = requests.get(fixtures_url)
+        fixtures = response.json()
+        fixtures_df = pd.DataFrame(fixtures)
+        fixtures_df['team_code'] = fixtures_df.apply(
+            lambda row: row['team_a'] if row['team_a'] in players['team'].values else row['team_h'],
+            axis=1
+        )
+        fixtures_df['next_match_difficulty'] = fixtures_df.apply(
+            lambda row: row['team_a_difficulty'] if row['team_a'] in players['team'].values else row['team_h_difficulty'],
+            axis=1
+        )
+        fixtures_df['opponent_team'] = fixtures_df.apply(
+            lambda row: row['team_h'] if row['team_a'] in players['team'].values else row['team_a'],
+            axis=1
+        )
+
+        # Map fixture information to players_df
+        players_with_fixtures = players.merge(
+            fixtures_df[['team_code', 'next_match_difficulty', 'opponent_team']],
+            left_on='team',
+            right_on='team_code',
+            how='left'
+        )
+
         # Set default position to 'Forward' and remove 'All'
-        position = st.selectbox("Select Position", options=list(players['position'].unique()), index=list(players['position'].unique()).index('Forward'))
-        
+        position = st.selectbox("Select Position", options=list(players_with_fixtures['position'].unique()), index=list(players_with_fixtures['position'].unique()).index('Forward'))
+
         # Filter by position
-        filtered_players = players[players['position'] == position]
+        filtered_players = players_with_fixtures[players_with_fixtures['position'] == position]
 
         # Ensure metrics columns are numeric
         for metric in metrics_by_position.get(position, []):
             if metric in filtered_players.columns:
                 filtered_players[metric] = pd.to_numeric(filtered_players[metric], errors='coerce')
-        
+
         # Determine metrics to use based on position
         selected_metrics = metrics_by_position.get(position, [])
-        
+
         # Handle missing metrics columns
         missing_metrics = [metric for metric in selected_metrics if metric not in filtered_players.columns]
         if missing_metrics:
             st.error(f"Missing columns: {', '.join(missing_metrics)}")
         else:
+            # Exclude players with high match difficulty (e.g., 5)
+            filtered_players = filtered_players[filtered_players['next_match_difficulty'] < 5]
+
             # Calculate total score based on selected metrics
             filtered_players['total_score'] = filtered_players[selected_metrics].sum(axis=1)
 
@@ -412,7 +441,7 @@ elif st.session_state.page == 'Best Players':
             top_11_players = filtered_players.sort_values(by='total_score', ascending=False).head(11)
 
             st.write(f"Top 11 Players based on selected metrics for position '{position}'")
-            
+
             # Display top players sorted by total score
             fig = px.bar(
                 top_11_players,
@@ -429,11 +458,6 @@ elif st.session_state.page == 'Best Players':
             st.plotly_chart(fig)
             
             st.subheader("Detailed Player Information")
-            st.write(top_11_players[['first_name', 'second_name', 'team', 'position'] + selected_metrics])
+            st.write(top_11_players[['first_name', 'second_name', 'team', 'position', 'next_match_difficulty', 'opponent_team'] + selected_metrics])
     else:
         st.error("The 'position' column is missing in the data.")
-
-
-
-
-
