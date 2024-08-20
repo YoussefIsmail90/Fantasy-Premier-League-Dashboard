@@ -207,27 +207,27 @@ if st.session_state.page == 'Home':
     st.plotly_chart(fig)
 
     # Fetch injury and suspension data
-def fetch_injury_data():
-    # This is a mockup URL; replace with actual API endpoint
-    url = "https://fantasy.premierleague.com/api/injury-data/"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        return data
-    except requests.RequestException as e:
-        st.error(f"Error fetching injury data: {e}")
-        return {}
+    def fetch_injury_data():
+        # This is a mockup URL; replace with actual API endpoint
+        url = "https://fantasy.premierleague.com/api/injury-data/"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+            return data
+        except requests.RequestException as e:
+            st.error(f"Error fetching injury data: {e}")
+            return {}
 
-# Display injury and suspension data
-st.sidebar.header("Injury and Suspension Updates")
-injury_data = fetch_injury_data()
-
-if injury_data:
-    st.write("Injury and Suspension Updates")
-    st.dataframe(pd.DataFrame(injury_data))
-else:
-    st.write("No injury data available.")
+    # Display injury and suspension data
+    st.sidebar.header("Injury and Suspension Updates")
+    injury_data = fetch_injury_data()
+    
+    if injury_data:
+        st.write("Injury and Suspension Updates")
+        st.dataframe(pd.DataFrame(injury_data))
+    else:
+        st.write("No injury data available.")
 
 
 elif st.session_state.page == 'Compare Players':
