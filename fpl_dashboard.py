@@ -109,30 +109,49 @@ total_players = len(st.session_state.players)
 st.title("Fantasy Premier League Dashboard")
 
 # Create layout for navigation buttons
-col1, col2, col3, col4, col5, col6 , col7 = st.columns([1, 1, 1, 1, 1, 1, 1])
+# col1, col2, col3, col4, col5, col6 , col7 = st.columns([1, 1, 1, 1, 1, 1, 1])
 
 
-with col1:
-    if st.button("Home"):
-        navigate_to("Home")
-with col2:
-    if st.button("Compare Players"):
-        navigate_to("Compare Players")
-with col3:
-    if st.button("Search for a Player"):
-        navigate_to("Search for a Player")
-with col4:
-    if st.button("Compare Teams"):
-        navigate_to("Compare Teams")
-with col5:
-    if st.button("Search for a Team"):
-        navigate_to("Search for a Team")
-with col6:
-    if st.button("Fixtures"):
-        navigate_to("Fixtures")
-with col7:
-    if st.button("Best Players"):
-        navigate_to("Best Players")
+# with col1:
+#     if st.button("Home"):
+#         navigate_to("Home")
+# with col2:
+#     if st.button("Compare Players"):
+#         navigate_to("Compare Players")
+# with col3:
+#     if st.button("Search for a Player"):
+#         navigate_to("Search for a Player")
+# with col4:
+#     if st.button("Compare Teams"):
+#         navigate_to("Compare Teams")
+# with col5:
+#     if st.button("Search for a Team"):
+#         navigate_to("Search for a Team")
+# with col6:
+#     if st.button("Fixtures"):
+#         navigate_to("Fixtures")
+# with col7:
+#     if st.button("Best Players"):
+#         navigate_to("Best Players")
+
+# Sidebar Navigation and Refresh Button
+st.sidebar.title("Navigation")
+st.sidebar.button("Refresh Data", on_click=refresh_data)
+
+if st.sidebar.button("Home"):
+    navigate_to("Home")
+if st.sidebar.button("Compare Players"):
+    navigate_to("Compare Players")
+if st.sidebar.button("Search for a Player"):
+    navigate_to("Search for a Player")
+if st.sidebar.button("Compare Teams"):
+    navigate_to("Compare Teams")
+if st.sidebar.button("Search for a Team"):
+    navigate_to("Search for a Team")
+if st.sidebar.button("Fixtures"):
+    navigate_to("Fixtures")
+if st.sidebar.button("Best Players"):
+    navigate_to("Best Players")
 
 
 
