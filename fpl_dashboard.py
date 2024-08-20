@@ -420,7 +420,7 @@ elif st.session_state.page == 'Best Players':
                 y='total_score',
                 color='team',
                 color_discrete_map=st.session_state.team_colors,
-                title="Best 11 Players by Metrics",
+                title="Best Players by Metrics",
                 labels={'second_name': 'Player', 'total_score': 'Total Score'},
                 height=500
             )
