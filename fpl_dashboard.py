@@ -408,7 +408,7 @@ elif st.session_state.page == 'Best Players':
             
             st.subheader("Detailed Player Information")
             
-            st.dataframe(top_11_players[['first_name', 'web_name', 'team', 'position'] + selected_metrics],width=1200)
+            st.dataframe(top_11_players[['first_name', 'web_name', 'team', 'position'] + selected_metrics],height=1000,width=1200)
 
     else:
         st.error("The 'position' column is missing in the data.")
