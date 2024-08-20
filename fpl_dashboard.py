@@ -433,8 +433,3 @@ elif st.session_state.page == 'Best Players':
     else:
         st.error("The 'position' column is missing in the data.")
 
-
-
-
-
-
