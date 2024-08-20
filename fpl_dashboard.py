@@ -346,7 +346,7 @@ elif st.session_state.page == 'Fixtures':
 
         # Display filtered fixtures in a table
         st.write("*Fixtures Table*")
-        st.dataframe(filtered_fixtures, height=4200,width=1400)  # Adjust the width as needed
+        st.dataframe(filtered_fixtures, height=5500,width=1400)  # Adjust the width as needed
 
     except requests.RequestException as e:
         st.error(f"Error fetching fixtures: {e}")  
