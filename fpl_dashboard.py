@@ -144,7 +144,7 @@ if st.session_state.page == 'Home':
 
     # Ensure the necessary columns are present
     # Ensure the necessary columns are present
-    required_columns = ['Hours', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals_conceded', 'influence',
+    required_columns = ['goals_scored', 'assists', 'clean_sheets', 'expected_goals_conceded', 'influence',
                         'creativity', 'threat', 'expected_goals', 'expected_assists']
     for col in required_columns:
         if col not in st.session_state.players.columns:
