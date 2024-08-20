@@ -174,7 +174,7 @@ if st.session_state.page == 'Home':
         return df.sort_values(by='score', ascending=False)
 
     ranked_players = rank_players(st.session_state.players)
-
+    st.write(ranked_players)
     # Select players based on position
     best_players = []
     for pos, count in positions.items():
