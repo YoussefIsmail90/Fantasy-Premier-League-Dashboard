@@ -377,7 +377,7 @@ elif st.session_state.page == 'Best 11 Players':
     st.header("Best 11 Players")
 
     # Metrics to consider
-    metrics = ['expected_goals', 'expected_assists',  
+    metrics = ['expected_goals', 'expected_assists', 'expected_goal_involvements', 
                'expected_goals_conceded', 'influence', 'creativity', 'threat', 
                'saves', 'bonus']
 
@@ -390,6 +390,11 @@ elif st.session_state.page == 'Best 11 Players':
         else:
             filtered_players = players
 
+        # Ensure metrics columns are numeric
+        for metric in metrics:
+            if metric in filtered_players.columns:
+                filtered_players[metric] = pd.to_numeric(filtered_players[metric], errors='coerce')
+        
         # Check if all metrics columns are present
         missing_metrics = [metric for metric in metrics if metric not in filtered_players.columns]
         if missing_metrics:
@@ -421,4 +426,5 @@ elif st.session_state.page == 'Best 11 Players':
             st.write(top_11_players[['first_name', 'second_name', 'team', 'position'] + metrics])
     else:
         st.error("The 'position' column is missing in the data.")
+
 
