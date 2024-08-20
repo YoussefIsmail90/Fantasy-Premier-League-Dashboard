@@ -411,11 +411,11 @@ elif st.session_state.page == 'Best Players':
             # Sort by total score
             top_11_players = filtered_players.sort_values(by='total_score', ascending=False).head(11)
 
-            st.write(f"Top 11 Players based on selected metrics for position '{position}'")
+            st.write(f"Top Players based on selected metrics for position '{position}'")
             
             # Display top players sorted by total score
             fig = px.bar(
-                top_11_players,
+                top_11_players.sort_values(by='total_score', ascending=False),
                 x='second_name',
                 y='total_score',
                 color='team',
@@ -432,6 +432,7 @@ elif st.session_state.page == 'Best Players':
             st.write(top_11_players[['first_name', 'second_name', 'team', 'position'] + selected_metrics])
     else:
         st.error("The 'position' column is missing in the data.")
+
 
 
 
