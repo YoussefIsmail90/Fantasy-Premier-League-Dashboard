@@ -368,6 +368,7 @@ elif st.session_state.page == 'Fixtures':
     except requests.RequestException as e:
         st.error(f"Error fetching fixtures: {e}")
 
+
 elif st.session_state.page == 'Best 11 Players':
     st.header("Best 11 Players for the Next Game Week")
 
