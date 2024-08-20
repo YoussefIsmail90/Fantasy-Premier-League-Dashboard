@@ -400,7 +400,7 @@ elif st.session_state.page == 'Best Players':
                 color_discrete_map=st.session_state.team_colors,
                 title="Best Players by Metrics",
                 labels={'web_name': 'Player', 'total_score': 'Total Score'},
-                height=500
+                height=500 , width=1200
             )
             fig.update_layout(template="plotly_dark")
             fig.update_xaxes(title_text='Player', categoryorder='total descending')  # Ensure x-axis is sorted by total_score
