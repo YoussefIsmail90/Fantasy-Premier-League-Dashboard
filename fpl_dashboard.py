@@ -132,11 +132,6 @@ if st.session_state.page == 'Home':
     # Create layout for top options
     col1, col2 = st.columns([2, 2])
     
-   elif st.session_state.page == 'Home':
-    st.write("Real-time data updates from the Fantasy Premier League.")
-    
-    # Create layout for top options
-    col1, col2 = st.columns([2, 2])
     
     with col1:
         st.subheader("Select Color Palette")
