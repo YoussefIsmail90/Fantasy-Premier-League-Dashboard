@@ -407,23 +407,8 @@ elif st.session_state.page == 'Best Players':
             st.plotly_chart(fig)
             
             st.subheader("Detailed Player Information")
-            # Custom CSS to adjust the table width
-            st.markdown(
-                """
-                <style>
-                .wide-table {
-                    width: 1200px;
-                    margin: auto;
-                }
-                </style>
-                """, unsafe_allow_html=True
-            )
-            
-            # Rendering the "Detailed Player Information" section with a custom class
             st.subheader("Detailed Player Information")
-            st.markdown('<div class="wide-table">', unsafe_allow_html=True)
-            st.write(top_11_players[['first_name', 'web_name', 'team', 'position'] + selected_metrics])
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.dataframe(top_11_players[['first_name', 'web_name', 'team', 'position'] + selected_metrics],width=1200)
 
     else:
         st.error("The 'position' column is missing in the data.")
