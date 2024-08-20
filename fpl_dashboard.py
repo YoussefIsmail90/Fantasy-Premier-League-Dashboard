@@ -391,7 +391,7 @@ elif st.session_state.page == 'Best Players':
         response = requests.get(fixtures_url)
         fixtures = response.json()
         fixtures_df = pd.DataFrame(fixtures)
-        
+
         # Map team IDs to team names
         fixtures_df['team_code'] = fixtures_df.apply(
             lambda row: row['team_a'] if row['team_a'] in players['team'].values else row['team_h'],
@@ -405,7 +405,7 @@ elif st.session_state.page == 'Best Players':
             lambda row: row['team_h'] if row['team_a'] in players['team'].values else row['team_a'],
             axis=1
         )
-        
+
         # Ensure the 'team' column in players matches 'team_code' in fixtures
         fixtures_df['team_code'] = fixtures_df['team_code'].astype(str)
         players['team'] = players['team'].astype(str)
@@ -443,30 +443,35 @@ elif st.session_state.page == 'Best Players':
             # Calculate total score based on selected metrics
             filtered_players['total_score'] = filtered_players[selected_metrics].sum(axis=1)
 
-            # Sort by total score
-            top_11_players = filtered_players.sort_values(by='total_score', ascending=False).head(11)
+            # Check if there are players to display
+            if filtered_players.empty:
+                st.write("No players match the selected criteria.")
+            else:
+                # Sort by total score
+                top_11_players = filtered_players.sort_values(by='total_score', ascending=False).head(11)
 
-            st.write(f"Top 11 Players based on selected metrics for position '{position}'")
+                st.write(f"Top 11 Players based on selected metrics for position '{position}'")
 
-            # Display top players sorted by total score
-            fig = px.bar(
-                top_11_players,
-                x='second_name',
-                y='total_score',
-                color='team',
-                color_discrete_map=st.session_state.team_colors,
-                title="Best 11 Players by Metrics",
-                labels={'second_name': 'Player', 'total_score': 'Total Score'},
-                height=500
-            )
-            fig.update_layout(template="plotly_dark")
-            fig.update_xaxes(title_text='Player', categoryorder='total descending')  # Ensure x-axis is sorted by total_score
-            st.plotly_chart(fig)
-            
-            st.subheader("Detailed Player Information")
-            st.write(top_11_players[['first_name', 'second_name', 'team', 'position', 'next_match_difficulty', 'opponent_team'] + selected_metrics])
+                # Display top players sorted by total score
+                fig = px.bar(
+                    top_11_players,
+                    x='second_name',
+                    y='total_score',
+                    color='team',
+                    color_discrete_map=st.session_state.team_colors,
+                    title="Best 11 Players by Metrics",
+                    labels={'second_name': 'Player', 'total_score': 'Total Score'},
+                    height=500
+                )
+                fig.update_layout(template="plotly_dark")
+                fig.update_xaxes(title_text='Player', categoryorder='total descending')  # Ensure x-axis is sorted by total_score
+                st.plotly_chart(fig)
+
+                st.subheader("Detailed Player Information")
+                st.write(top_11_players[['first_name', 'second_name', 'team', 'position', 'next_match_difficulty', 'opponent_team'] + selected_metrics])
     else:
         st.error("The 'position' column is missing in the data.")
+
 
 
 
