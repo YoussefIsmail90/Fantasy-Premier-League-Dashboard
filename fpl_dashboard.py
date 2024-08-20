@@ -37,7 +37,7 @@ def prepare_data(data):
     teams = pd.DataFrame(data['teams'])
     element_types = pd.DataFrame(data['element_types'])  # Fetch element types
 
-    players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 
+    players = players[['first_name', 'second_name', 'web_name' ,'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 
                        'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 
                        'selected_by_percent', 'influence', 'creativity', 'threat', 'expected_goals', 
                        'expected_assists', 'expected_goals_conceded', 'saves', 'element_type']]
