@@ -37,9 +37,9 @@ def prepare_data(data):
     teams = pd.DataFrame(data['teams'])
     element_types = pd.DataFrame(data['element_types'])  # Fetch element types
 
-    players = players[['first_name', 'second_name', 'web_name' ,'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 
-                       'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 
-                       'selected_by_percent', 'influence', 'creativity', 'threat', 'expected_goals', 
+    players = players[['first_name', 'second_name', 'web_name', 'team', 'total_points', 'goals_scored', 'assists', 
+                       'clean_sheets', 'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 
+                       'event_points', 'selected_by_percent', 'influence', 'creativity', 'threat', 'expected_goals', 
                        'expected_assists', 'expected_goals_conceded', 'saves', 'element_type']]
     players = players.merge(teams[['id', 'name']], left_on='team', right_on='id')
     players.drop(columns=['id', 'team'], inplace=True)
@@ -56,7 +56,6 @@ def prepare_data(data):
     players['position'] = players['element_type'].map(element_types_map)
 
     return players, teams
-
 
 # Define color palettes
 color_palettes = {
@@ -88,52 +87,6 @@ def refresh_data():
     st.session_state.players, st.session_state.teams = prepare_data(st.session_state.fpl_data)
     st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
 
-# Refresh Button
-st.sidebar.button("Refresh Data", on_click=refresh_data)
-
-# Load and prepare data
-if 'fpl_data' not in st.session_state:
-    st.session_state.fpl_data = fetch_fpl_data()
-    st.session_state.players, st.session_state.teams = prepare_data(st.session_state.fpl_data)
-    color_palette = color_palettes.get('Plasma', px.colors.sequential.Plasma)
-    st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
-else:
-    players, teams = st.session_state.players, st.session_state.teams
-    color_palette = color_palettes.get('Plasma', px.colors.sequential.Plasma)
-    st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
-
-# Calculate total number of players
-total_players = len(st.session_state.players)
-
-# Navigation Buttons
-st.title("Fantasy Premier League Dashboard")
-
-# Create layout for navigation buttons
-# col1, col2, col3, col4, col5, col6 , col7 = st.columns([1, 1, 1, 1, 1, 1, 1])
-
-
-# with col1:
-#     if st.button("Home"):
-#         navigate_to("Home")
-# with col2:
-#     if st.button("Compare Players"):
-#         navigate_to("Compare Players")
-# with col3:
-#     if st.button("Search for a Player"):
-#         navigate_to("Search for a Player")
-# with col4:
-#     if st.button("Compare Teams"):
-#         navigate_to("Compare Teams")
-# with col5:
-#     if st.button("Search for a Team"):
-#         navigate_to("Search for a Team")
-# with col6:
-#     if st.button("Fixtures"):
-#         navigate_to("Fixtures")
-# with col7:
-#     if st.button("Best Players"):
-#         navigate_to("Best Players")
-
 # Sidebar Navigation and Refresh Button
 st.sidebar.title("Navigation")
 st.sidebar.button("Refresh Data", on_click=refresh_data)
@@ -153,21 +106,30 @@ if st.sidebar.button("Fixtures"):
 if st.sidebar.button("Best Players"):
     navigate_to("Best Players")
 
+# Load and prepare data
+if 'fpl_data' not in st.session_state:
+    st.session_state.fpl_data = fetch_fpl_data()
+    st.session_state.players, st.session_state.teams = prepare_data(st.session_state.fpl_data)
+    color_palette = color_palettes.get('Plasma', px.colors.sequential.Plasma)
+    st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
+else:
+    players, teams = st.session_state.players, st.session_state.teams
+    color_palette = color_palettes.get('Plasma', px.colors.sequential.Plasma)
+    st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
 
+# Calculate total number of players
+total_players = len(st.session_state.players)
 
-# Page content based on navigation state
+# Main Page content based on navigation state
+st.title("Fantasy Premier League Dashboard")
+
 if st.session_state.page == 'Home':
     st.write("Real-time data updates from the Fantasy Premier League.")
     
-    # Create layout for top options
-    col1, col2 = st.columns([2, 2])
-    
-    
-    with col1:
-        st.subheader("Select Color Palette")
-        selected_palette_name = st.selectbox("Select Color Palette:", options=list(color_palettes.keys()))
-        color_palette = color_palettes.get(selected_palette_name, px.colors.sequential.Plasma)
-        st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
+    st.subheader("Select Color Palette")
+    selected_palette_name = st.selectbox("Select Color Palette:", options=list(color_palettes.keys()))
+    color_palette = color_palettes.get(selected_palette_name, px.colors.sequential.Plasma)
+    st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
     
     st.subheader("Top Players by Total Points")
     fig = px.bar(
@@ -184,11 +146,12 @@ if st.session_state.page == 'Home':
     st.plotly_chart(fig)
     
     st.subheader("Player Detailed Statistics")
-
     num_players = st.slider("Number of Players to Display:", min_value=5, max_value=total_players, value=10)
     sort_by = st.selectbox("Sort By:", options=['Hours', 'Total Points', 'Goals Scored', 'Assists', 'Clean Sheets', 'Ownership', 'Price'])
 
-    detailed_players = st.session_state.players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'Hours', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'Ownership', 'Price']]
+    detailed_players = st.session_state.players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 
+                                                 'clean_sheets', 'Hours', 'yellow_cards', 'red_cards', 'form', 'bonus', 
+                                                 'event_points', 'Ownership', 'Price']]
     
     if sort_by == 'Hours':
         detailed_players = detailed_players.sort_values(by='Hours', ascending=False)
@@ -214,9 +177,7 @@ if st.session_state.page == 'Home':
     st.dataframe(styled_players)
 
     st.subheader("Players Info")
-    
     top_n = 20
-
     price_form_df = st.session_state.players[['second_name', 'bonus', 'Ownership', 'Price']].sort_values(by='Ownership', ascending=False).head(top_n)
     price_form_df = price_form_df.rename(columns={'Ownership': 'ownership'})
     price_colors = '#1f77b4'
@@ -224,7 +185,6 @@ if st.session_state.page == 'Home':
     ownership_colors = '#2ca02c'
 
     fig_combined = go.Figure()
-
     fig_combined.add_trace(go.Bar(
         x=price_form_df['second_name'],
         y=price_form_df['ownership'],
@@ -248,16 +208,15 @@ if st.session_state.page == 'Home':
 
     fig_combined.update_layout(
         barmode='group',
-        title='Top Players by Ownership, Bonus Points, and Price',
-        xaxis_title='Player',
-        yaxis_title='Value',
-        template='plotly_dark'
+        title='Top 20 Players by Ownership',
+        template="plotly_dark",
+        yaxis=dict(title='Value'),
+        xaxis=dict(title='Player'),
+        height=500
     )
 
     st.plotly_chart(fig_combined)
-
-
-
+    
 elif st.session_state.page == 'Compare Players':
     st.header("Compare Players")
 
