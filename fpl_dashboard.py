@@ -132,22 +132,19 @@ if st.session_state.page == 'Home':
     # Create layout for top options
     col1, col2 = st.columns([2, 2])
     
+   elif st.session_state.page == 'Home':
+    st.write("Real-time data updates from the Fantasy Premier League.")
+    
+    # Create layout for top options
+    col1, col2 = st.columns([2, 2])
+    
     with col1:
         st.subheader("Select Color Palette")
         selected_palette_name = st.selectbox("Select Color Palette:", options=list(color_palettes.keys()))
         color_palette = color_palettes.get(selected_palette_name, px.colors.sequential.Plasma)
         st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
-        
-
-
-
-    
-
-
-    
     
     st.subheader("Top Players by Total Points")
-    
     fig = px.bar(
         st.session_state.players.sort_values(by='total_points', ascending=False).head(50),
         x='second_name',
@@ -210,8 +207,6 @@ if st.session_state.page == 'Home':
         marker_color=ownership_colors
     ))
 
-    
-
     fig_combined.add_trace(go.Bar(
         x=price_form_df['second_name'],
         y=price_form_df['bonus'],
@@ -226,8 +221,6 @@ if st.session_state.page == 'Home':
         marker_color=price_colors
     ))
 
-    
-
     fig_combined.update_layout(
         barmode='group',
         title='Top Players by Ownership, Bonus Points, and Price',
@@ -237,6 +230,21 @@ if st.session_state.page == 'Home':
     )
 
     st.plotly_chart(fig_combined)
+
+    # Best 11 Players for the Next Game Week
+    st.subheader("Best 11 Players for the Next Game Week")
+
+    if 'fpl_data' in st.session_state and 'gameweek_data' in st.session_state:
+        players = st.session_state.players
+        gameweek_data = st.session_state.gameweek_data
+
+        # Determine the best 11 players
+        best_11_players = determine_best_11_players(players, gameweek_data)
+
+        st.write(best_11_players)
+    else:
+        st.write("Please refresh data to see the best 11 players.")
+
 
 
 elif st.session_state.page == 'Compare Players':
