@@ -416,12 +416,12 @@ elif st.session_state.page == 'Best Players':
             # Display top players sorted by total score
             fig = px.bar(
                 top_11_players.sort_values(by='total_score', ascending=False),
-                x='second_name',
+                x='web_name',  # Use 'web_name' for player names
                 y='total_score',
                 color='team',
                 color_discrete_map=st.session_state.team_colors,
                 title="Best Players by Metrics",
-                labels={'second_name': 'Player', 'total_score': 'Total Score'},
+                labels={'web_name': 'Player', 'total_score': 'Total Score'},
                 height=500
             )
             fig.update_layout(template="plotly_dark")
@@ -429,7 +429,8 @@ elif st.session_state.page == 'Best Players':
             st.plotly_chart(fig)
             
             st.subheader("Detailed Player Information")
-            st.write(top_11_players[['first_name', 'second_name', 'team', 'position'] + selected_metrics])
+            st.write(top_11_players[['first_name', 'web_name', 'team', 'position'] + selected_metrics])
     else:
         st.error("The 'position' column is missing in the data.")
+
 
