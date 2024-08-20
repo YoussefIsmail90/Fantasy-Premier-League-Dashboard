@@ -35,12 +35,12 @@ def fetch_fpl_data():
 def prepare_data(data):
     players = pd.DataFrame(data['elements'])
     teams = pd.DataFrame(data['teams'])
-    element_types = pd.DataFrame(data['element_types'])
-    # players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'selected_by_percent']]
+    element_types = pd.DataFrame(data['element_types'])  # Fetch element types
+
     players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 
                        'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 
-                       'selected_by_percent', 'influence', 'creativity', 'threat', 'expected_goals', 'expected_assists', 
-                       'expected_goals_conceded', 'saves']]
+                       'selected_by_percent', 'influence', 'creativity', 'threat', 'expected_goals', 
+                       'expected_assists', 'expected_goals_conceded', 'saves', 'element_type']]
     players = players.merge(teams[['id', 'name']], left_on='team', right_on='id')
     players.drop(columns=['id', 'team'], inplace=True)
     players.rename(columns={'name': 'team'}, inplace=True)
@@ -50,7 +50,13 @@ def prepare_data(data):
     players['Price'] = players['Price'] / 10
     players['selected_by_percent'] = pd.to_numeric(players['selected_by_percent'], errors='coerce')
     players.rename(columns={'selected_by_percent': 'Ownership'}, inplace=True)
+
+    # Map element_type to readable position names
+    element_types_map = dict(zip(element_types['id'], element_types['singular_name']))
+    players['position'] = players['element_type'].map(element_types_map)
+
     return players, teams
+
 
 # Define color palettes
 color_palettes = {
