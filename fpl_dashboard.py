@@ -35,6 +35,7 @@ def fetch_fpl_data():
 def prepare_data(data):
     players = pd.DataFrame(data['elements'])
     teams = pd.DataFrame(data['teams'])
+    # players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'selected_by_percent']]
     players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 
                        'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 
                        'selected_by_percent', 'influence', 'creativity', 'threat', 'expected_goals', 'expected_assists', 
@@ -103,6 +104,7 @@ st.title("Fantasy Premier League Dashboard")
 # Create layout for navigation buttons
 col1, col2, col3, col4, col5, col6  = st.columns([1, 1, 1, 1, 1, 1])
 
+
 with col1:
     if st.button("Home"):
         navigate_to("Home")
@@ -122,14 +124,83 @@ with col6:
     if st.button("Fixtures"):
         navigate_to("Fixtures")
 
+
 # Page content based on navigation state
 if st.session_state.page == 'Home':
     st.write("Real-time data updates from the Fantasy Premier League.")
     
-    # Check if player data is available
-    if 'players' not in st.session_state or st.session_state.players.empty:
-        st.error("No player data available. Please check the data loading process.")
-        st.stop()
+    # Create layout for top options
+    col1, col2 = st.columns([2, 2])
+    
+    with col1:
+        st.subheader("Select Color Palette")
+        selected_palette_name = st.selectbox("Select Color Palette:", options=list(color_palettes.keys()))
+        color_palette = color_palettes.get(selected_palette_name, px.colors.sequential.Plasma)
+        st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
+        
+
+
+    st.header("Best 11 Players for the Next Game Week")
+
+    # Ensure the necessary columns are present
+    required_columns = ['minutes', 'goals_scored', 'assists', 'clean_sheets', 'goals_conceded', 'influence',
+                        'creativity', 'threat', 'expected_goals', 'expected_assists', 'position']
+    for col in required_columns:
+        if col not in st.session_state.players.columns:
+            st.error(f"Missing column: {col}")
+            st.stop()
+
+    # Define positions
+    positions = {
+        'Goalkeeper': 1,
+        'Defender': 4,
+        'Midfielder': 3,
+        'Forward': 2
+    }
+
+    # Rank players based on metrics
+    def rank_players(df):
+        # Combine metrics into a single score
+        df['score'] = (df['minutes'] * 0.1 +
+                       df['goals_scored'] * 3 +
+                       df['assists'] * 3 +
+                       df['clean_sheets'] * 4 -
+                       df['goals_conceded'] * 1 +
+                       df['influence'] * 0.2 +
+                       df['creativity'] * 0.2 +
+                       df['threat'] * 0.2 +
+                       df['expected_goals'] * 2 +
+                       df['expected_assists'] * 2)
+        return df.sort_values(by='score', ascending=False)
+
+    ranked_players = rank_players(st.session_state.players)
+    st.write(ranked_players)
+    # Select players based on position
+    best_players = []
+    for pos, count in positions.items():
+        position_players = ranked_players[ranked_players['position'] == pos].head(count)
+        best_players.append(position_players)
+
+    best_11 = pd.concat(best_players)
+    best_11 = best_11[['first_name', 'second_name', 'team', 'position', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals', 'expected_assists']]
+    
+    st.write(f"**Best 11 Players for the Next Game Week**")
+    st.dataframe(best_11)
+
+    st.subheader("Visualization of Top Players")
+    fig_best_11 = px.bar(
+        best_11,
+        x='second_name',
+        y='total_points',
+        color='team',
+        title="Top 11 Players by Total Points",
+        labels={'second_name': 'Player', 'total_points': 'Total Points'},
+        height=500,
+        color_discrete_map=st.session_state.team_colors
+    )
+    fig_best_11.update_layout(template="plotly_dark")
+    st.plotly_chart(fig_best_11)
+    
     
     st.subheader("Top Players by Total Points")
     
@@ -181,116 +252,179 @@ if st.session_state.page == 'Home':
     top_n = 20
 
     price_form_df = st.session_state.players[['second_name', 'bonus', 'Ownership', 'Price']].sort_values(by='Ownership', ascending=False).head(top_n)
-    st.write("Top 20 players based on Ownership:")
-    st.write(price_form_df)
-    
-    st.subheader("Team Performance")
-    
-    team_performance = st.session_state.players.groupby('team').agg({
-        'total_points': 'sum',
-        'goals_scored': 'sum',
-        'assists': 'sum',
-        'clean_sheets': 'sum',
-        'Price': 'mean'
-    }).reset_index()
+    price_form_df = price_form_df.rename(columns={'Ownership': 'ownership'})
+    price_colors = '#1f77b4'
+    bonus_colors = '#ff7f0e'
+    ownership_colors = '#2ca02c'
 
-    fig = px.bar(
-        team_performance,
-        x='team',
-        y=['total_points', 'goals_scored', 'assists', 'clean_sheets'],
-        title="Team Performance Overview",
-        labels={'value': 'Count', 'team': 'Team'},
-        height=500,
-        color_discrete_map=st.session_state.team_colors
+    fig_combined = go.Figure()
+
+    fig_combined.add_trace(go.Bar(
+        x=price_form_df['second_name'],
+        y=price_form_df['ownership'],
+        name='Ownership',
+        marker_color=ownership_colors
+    ))
+
+    
+
+    fig_combined.add_trace(go.Bar(
+        x=price_form_df['second_name'],
+        y=price_form_df['bonus'],
+        name='Bonus Points',
+        marker_color=bonus_colors
+    ))
+
+    fig_combined.add_trace(go.Bar(
+        x=price_form_df['second_name'],
+        y=price_form_df['Price'],
+        name='Price',
+        marker_color=price_colors
+    ))
+
+    
+
+    fig_combined.update_layout(
+        barmode='group',
+        title='Top Players by Ownership, Bonus Points, and Price',
+        xaxis_title='Player',
+        yaxis_title='Value',
+        template='plotly_dark'
     )
-    fig.update_layout(template="plotly_dark")
-    st.plotly_chart(fig)
 
+    st.plotly_chart(fig_combined)
 
 
 elif st.session_state.page == 'Compare Players':
-    st.subheader("Compare Players")
-    
-    if 'comparison_players' not in st.session_state or len(st.session_state.comparison_players) < 2:
-        st.warning("Select at least two players to compare.")
-    else:
-        comparison_df = st.session_state.players[st.session_state.players['second_name'].isin(st.session_state.comparison_players)]
+    st.header("Compare Players")
+
+    player1_name = st.selectbox("Select Player 1", options=players['second_name'].unique())
+    player2_name = st.selectbox("Select Player 2", options=players['second_name'].unique())
+
+    if player1_name and player2_name:
+        player1_data = players[players['second_name'] == player1_name].iloc[0]
+        player2_data = players[players['second_name'] == player2_name].iloc[0]
+
+        metrics = ['total_points', 'goals_scored', 'assists', 'clean_sheets', 'Hours', 'yellow_cards', 'red_cards','Ownership','Price']
+        player1_values = [player1_data[metric] for metric in metrics]
+        player2_values = [player2_data[metric] for metric in metrics]
+
+        comparison_df = pd.DataFrame({
+            'Metric': metrics,
+            player1_name: player1_values,
+            player2_name: player2_values
+        })
+
+        fig_comparison = px.bar(comparison_df, x='Metric', y=[player1_name, player2_name],
+                               title=f'Comparison between {player1_name} and {player2_name}',
+                               labels={'Metric': 'Metric', 'value': 'Value'},
+                               height=500,
+                               color_discrete_sequence=['#ef2213', '#20ef13'])
         
-        fig = px.bar(
-            comparison_df,
-            x='second_name',
-            y=['total_points', 'goals_scored', 'assists', 'clean_sheets'],
-            title="Player Comparison",
-            color='team',
-            color_discrete_map=st.session_state.team_colors,
-            height=500
-        )
-        fig.update_layout(template="plotly_dark")
-        st.plotly_chart(fig)
+        fig_comparison.update_layout(template="plotly_dark")
+
+        st.plotly_chart(fig_comparison)
 
 elif st.session_state.page == 'Search for a Player':
-    st.subheader("Search for a Player")
-    
-    search_term = st.text_input("Enter player name:")
-    if search_term:
-        search_results = st.session_state.players[st.session_state.players['second_name'].str.contains(search_term, case=False)]
-        if search_results.empty:
-            st.warning("No players found.")
-        else:
+    st.header("Search for a Player")
+
+    search_query = st.text_input("Enter Player Name")
+    if search_query:
+        search_results = players[players['second_name'].str.contains(search_query, case=False, na=False)]
+        if not search_results.empty:
             st.write(search_results)
-            st.write(f"Total players found: {len(search_results)}")
-    
+        else:
+            st.write("No players found.")
+
 elif st.session_state.page == 'Compare Teams':
-    st.subheader("Compare Teams")
-    
-    teams_to_compare = st.multiselect("Select Teams to Compare:", options=st.session_state.teams['name'].tolist())
-    
-    if len(teams_to_compare) < 2:
-        st.warning("Select at least two teams to compare.")
-    else:
-        team_comparison_df = st.session_state.players[st.session_state.players['team'].isin(teams_to_compare)]
-        
-        fig = px.bar(
-            team_comparison_df,
-            x='team',
-            y=['total_points', 'goals_scored', 'assists', 'clean_sheets'],
-            title="Team Comparison",
-            color='team',
-            color_discrete_map=st.session_state.team_colors,
-            height=500
-        )
-        fig.update_layout(template="plotly_dark")
-        st.plotly_chart(fig)
+    st.header("Compare Teams")
+
+    team1_name = st.selectbox("Select Team 1", options=teams['name'].unique())
+    team2_name = st.selectbox("Select Team 2", options=teams['name'].unique())
+
+    if team1_name and team2_name:
+        team1_players = players[players['team'] == team1_name]
+        team2_players = players[players['team'] == team2_name]
+
+        team1_stats = team1_players[['total_points', 'goals_scored', 'assists', 'clean_sheets']].sum()
+        team2_stats = team2_players[['total_points', 'goals_scored', 'assists', 'clean_sheets']].sum()
+
+        stats_df = pd.DataFrame({
+            'Metric': ['Total Points', 'Goals Scored', 'Assists', 'Clean Sheets'],
+            team1_name: team1_stats.values,
+            team2_name: team2_stats.values
+        })
+
+        fig_team_comparison = px.bar(stats_df, x='Metric', y=[team1_name, team2_name],
+                                    title=f'Comparison between {team1_name} and {team2_name}',
+                                    labels={'Metric': 'Metric', 'value': 'Value'},
+                                    height=500,
+                                    color_discrete_sequence=['#ef2213', '#20ef13'])
+        fig_team_comparison.update_layout(template="plotly_dark")
+
+        st.plotly_chart(fig_team_comparison)
 
 elif st.session_state.page == 'Search for a Team':
-    st.subheader("Search for a Team")
-    
-    search_term = st.text_input("Enter team name:")
-    if search_term:
-        search_results = st.session_state.teams[st.session_state.teams['name'].str.contains(search_term, case=False)]
-        if search_results.empty:
-            st.warning("No teams found.")
-        else:
+    st.header("Search for a Team")
+
+    search_query = st.text_input("Enter Team Name")
+    if search_query:
+        search_results = teams[teams['name'].str.contains(search_query, case=False, na=False)]
+        if not search_results.empty:
             st.write(search_results)
-            st.write(f"Total teams found: {len(search_results)}")
+        else:
+            st.write("No teams found.")
 
 elif st.session_state.page == 'Fixtures':
-    st.subheader("Fixtures")
-    
-    # Fetch fixtures data
-    url = "https://fantasy.premierleague.com/api/fixtures/"
-    response = requests.get(url)
-    fixtures_data = response.json()
-    
-    fixtures_df = pd.DataFrame(fixtures_data)
-    
-    if not fixtures_df.empty:
-        fixtures_df['event_date'] = pd.to_datetime(fixtures_df['event_date'], format='%Y-%m-%dT%H:%M:%S')
-        fixtures_df['date'] = fixtures_df['event_date'].dt.date
-        fixtures_df['time'] = fixtures_df['event_date'].dt.time
-        fixtures_df = fixtures_df[['date', 'time', 'team_a', 'team_h']]
-        fixtures_df.columns = ['Date', 'Time', 'Home Team', 'Away Team']
+    st.header("Fixtures")
+
+    # Fetch and display fixtures
+    fixtures_url = "https://fantasy.premierleague.com/api/fixtures/"
+    try:
+        response = requests.get(fixtures_url)
+        response.raise_for_status()
+        fixtures = response.json()
+        fixtures_df = pd.DataFrame(fixtures)
+
+        # Convert datetime and add date and time columns
+        fixtures_df['kickoff_time'] = pd.to_datetime(fixtures_df['kickoff_time'])
+        fixtures_df['Date'] = fixtures_df['kickoff_time'].dt.date
+        fixtures_df['Time'] = fixtures_df['kickoff_time'].dt.strftime('%H:%M')  # Format time as HH:MM
+
+        # Map team IDs to team names using the teams DataFrame
+        team_id_to_name = dict(teams[['id', 'name']].values)
+        fixtures_df['team_h'] = fixtures_df['team_h'].map(team_id_to_name)
+        fixtures_df['team_a'] = fixtures_df['team_a'].map(team_id_to_name)
+
+        # Rename columns
+        fixtures_df = fixtures_df.rename(columns={'team_h': 'Home', 'team_a': 'Away'})
         
-        st.write(fixtures_df)
-    else:
-        st.warning("No fixtures data available.")
+        # Add useful columns
+        fixtures_df['Home Score'] = fixtures_df.get('team_h_score', '-').fillna('-')
+        fixtures_df['Away Score'] = fixtures_df.get('team_a_score', '-').fillna('-')
+        fixtures_df['Home Score'] = pd.to_numeric(fixtures_df['Home Score'], errors='coerce')
+        fixtures_df['Away Score'] = pd.to_numeric(fixtures_df['Away Score'], errors='coerce')
+
+        # Add status column based on 'finished' and 'finished_provisional'
+        fixtures_df['Status'] = fixtures_df['finished'].apply(lambda x: 'Finished' if x else 'Upcoming')
+        fixtures_df['Status'] = fixtures_df['Status'].fillna('Provisional' if fixtures_df['finished_provisional'].any() else 'Upcoming')
+
+        # Select columns to display
+        fixtures_df = fixtures_df[['Date', 'Time', 'Home', 'Away', 'Home Score', 'Away Score', 'Status']]
+
+        # Team filter
+        st.subheader("Filter by Team")
+        selected_team = st.selectbox("Select Team:", options=['All'] + sorted(teams['name'].unique()))
+
+        # Apply team filter
+        if selected_team != 'All':
+            filtered_fixtures = fixtures_df[(fixtures_df['Home'] == selected_team) | (fixtures_df['Away'] == selected_team)]
+        else:
+            filtered_fixtures = fixtures_df
+
+        # Display filtered fixtures in a table
+        st.write("*Fixtures Table*")
+        st.dataframe(filtered_fixtures, width=1200)  # Adjust the width as needed
+
+    except requests.RequestException as e:
+        st.error(f"Error fetching fixtures: {e}")  
