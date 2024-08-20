@@ -393,6 +393,11 @@ elif st.session_state.page == 'Best Players':
         fixtures_df = pd.DataFrame(fixtures)
 
         # Map team IDs to team names
+        team_id_to_name = dict(teams[['id', 'name']].values)
+        fixtures_df['team_h'] = fixtures_df['team_h'].map(team_id_to_name)
+        fixtures_df['team_a'] = fixtures_df['team_a'].map(team_id_to_name)
+
+        # Add useful columns
         fixtures_df['team_code'] = fixtures_df.apply(
             lambda row: row['team_a'] if row['team_a'] in players['team'].values else row['team_h'],
             axis=1
@@ -424,6 +429,10 @@ elif st.session_state.page == 'Best Players':
         # Filter by position
         filtered_players = players_with_fixtures[players_with_fixtures['position'] == position]
 
+        # Debug: Inspect filtered data
+        st.write("Filtered Players DataFrame:")
+        st.write(filtered_players.head())
+
         # Ensure metrics columns are numeric
         for metric in metrics_by_position.get(position, []):
             if metric in filtered_players.columns:
@@ -439,6 +448,10 @@ elif st.session_state.page == 'Best Players':
         else:
             # Exclude players with high match difficulty (e.g., 5)
             filtered_players = filtered_players[filtered_players['next_match_difficulty'] < 5]
+
+            # Debug: Inspect data after filtering difficulty
+            st.write("Filtered Players with Match Difficulty DataFrame:")
+            st.write(filtered_players.head())
 
             # Calculate total score based on selected metrics
             filtered_players['total_score'] = filtered_players[selected_metrics].sum(axis=1)
@@ -471,6 +484,7 @@ elif st.session_state.page == 'Best Players':
                 st.write(top_11_players[['first_name', 'second_name', 'team', 'position', 'next_match_difficulty', 'opponent_team'] + selected_metrics])
     else:
         st.error("The 'position' column is missing in the data.")
+
 
 
 
