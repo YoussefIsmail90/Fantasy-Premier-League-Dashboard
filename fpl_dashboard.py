@@ -378,10 +378,10 @@ elif st.session_state.page == 'Best Players':
 
     # Define metrics for each position
     metrics_by_position = {
-        'Goalkeeper': ['saves', 'clean_sheets'],
-        'Defender': ['expected_goals', 'expected_assists', 'clean_sheets', 'influence', 'creativity', 'threat'],
-        'Midfielder': ['expected_goals', 'expected_assists', 'influence', 'creativity', 'threat'],
-        'Forward': ['expected_goals', 'expected_assists', 'influence', 'creativity', 'threat']
+        'Goalkeeper': ['saves', 'clean_sheets', 'form'],
+        'Defender': ['expected_goals', 'expected_assists', 'clean_sheets', 'influence', 'creativity', 'threat','form'],
+        'Midfielder': ['expected_goals', 'expected_assists', 'influence', 'creativity', 'threat','form'],
+        'Forward': ['expected_goals', 'expected_assists', 'influence', 'creativity', 'threat','form']
     }
 
     # Check if 'position' column exists
