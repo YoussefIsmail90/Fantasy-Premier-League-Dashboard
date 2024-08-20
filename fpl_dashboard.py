@@ -131,8 +131,8 @@ with col6:
     if st.button("Fixtures"):
         navigate_to("Fixtures")
 with col7:
-    if st.button("Best 11 Players"):
-        navigate_to("Best 11 Players")
+    if st.button("Best Players"):
+        navigate_to("Best Players")
 
 
 
@@ -376,10 +376,13 @@ elif st.session_state.page == 'Fixtures':
 elif st.session_state.page == 'Best Players':
     st.header("Best Players")
 
-    # Metrics to consider
-    metrics = ['expected_goals', 'expected_assists', 
-               'expected_goals_conceded', 'influence', 'creativity', 'threat', 
-               'saves', 'bonus']
+    # Define metrics for each position
+    metrics_by_position = {
+        'Goalkeeper': ['saves', 'clean_sheets'],
+        'Defender': ['expected_goals', 'expected_assists', 'clean_sheets'],
+        'Midfielder': ['expected_goals', 'expected_assists'],
+        'Forward': ['expected_goals', 'expected_assists']
+    }
 
     # Check if 'position' column exists
     if 'position' in players.columns:
@@ -391,22 +394,28 @@ elif st.session_state.page == 'Best Players':
             filtered_players = players
 
         # Ensure metrics columns are numeric
-        for metric in metrics:
+        for metric in metrics_by_position.get(position, []):
             if metric in filtered_players.columns:
                 filtered_players[metric] = pd.to_numeric(filtered_players[metric], errors='coerce')
         
-        # Check if all metrics columns are present
-        missing_metrics = [metric for metric in metrics if metric not in filtered_players.columns]
+        # Calculate total score based on position
+        if position in metrics_by_position:
+            selected_metrics = metrics_by_position[position]
+        else:
+            selected_metrics = []
+        
+        # Handle missing metrics columns
+        missing_metrics = [metric for metric in selected_metrics if metric not in filtered_players.columns]
         if missing_metrics:
             st.error(f"Missing columns: {', '.join(missing_metrics)}")
         else:
-            # Calculate total score
-            filtered_players['total_score'] = filtered_players[metrics].sum(axis=1)
+            # Calculate total score based on selected metrics
+            filtered_players['total_score'] = filtered_players[selected_metrics].sum(axis=1)
 
-            # Sort by the sum of metrics
+            # Sort by the total score
             top_11_players = filtered_players.sort_values(by='total_score', ascending=False).head(11)
 
-            st.write(f"Top 11 Players based on selected metrics for position '{position}'")
+            st.write(f"Top Players based on selected metrics for position '{position}'")
             
             # Display top players
             fig = px.bar(
@@ -423,8 +432,9 @@ elif st.session_state.page == 'Best Players':
             st.plotly_chart(fig)
             
             st.subheader("Detailed Player Information")
-            st.write(top_11_players[['first_name', 'second_name', 'team', 'position'] + metrics])
+            st.write(top_11_players[['first_name', 'second_name', 'team', 'position'] + selected_metrics])
     else:
         st.error("The 'position' column is missing in the data.")
+
 
 
