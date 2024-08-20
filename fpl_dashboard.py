@@ -102,7 +102,7 @@ total_players = len(st.session_state.players)
 st.title("Fantasy Premier League Dashboard")
 
 # Create layout for navigation buttons
-col1, col2, col3, col4, col5, col6 , col7= st.columns([1, 1, 1, 1, 1, 1,1])
+col1, col2, col3, col4, col5, col6 , col7 = st.columns([1, 1, 1, 1, 1, 1, 1])
 
 
 with col1:
