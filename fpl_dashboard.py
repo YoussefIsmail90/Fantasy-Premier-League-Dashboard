@@ -180,21 +180,7 @@ if st.session_state.page == 'Home':
     
     
     st.write(f"**Best 11 Players for the Next Game Week**")
-    st.dataframe(best_11)
     
-    # Visualization of Best 11 Players
-    fig_best_11 = px.bar(
-        best_11,
-        x='second_name',
-        y='total_points',
-        color='team',
-        title="Top 11 Players by Total Points",
-        labels={'second_name': 'Player', 'total_points': 'Total Points'},
-        height=500,
-        color_discrete_map=st.session_state.team_colors
-    )
-    fig_best_11.update_layout(template="plotly_dark")
-    st.plotly_chart(fig_best_11)
 
 
     
