@@ -35,11 +35,11 @@ def fetch_fpl_data():
 def prepare_data(data):
     players = pd.DataFrame(data['elements'])
     teams = pd.DataFrame(data['teams'])
-    # players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 'selected_by_percent']]
+    fixtures = pd.DataFrame(data['fixtures'])  # Ensure you have fixtures data if needed
     players = players[['first_name', 'second_name', 'team', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 
                        'now_cost', 'minutes', 'yellow_cards', 'red_cards', 'form', 'bonus', 'event_points', 
                        'selected_by_percent', 'influence', 'creativity', 'threat', 'expected_goals', 'expected_assists', 
-                       'expected_goals_conceded', 'saves']]
+                       'expected_goals_conceded', 'saves', 'event']]
     players = players.merge(teams[['id', 'name']], left_on='team', right_on='id')
     players.drop(columns=['id', 'team'], inplace=True)
     players.rename(columns={'name': 'team'}, inplace=True)
@@ -49,7 +49,8 @@ def prepare_data(data):
     players['Price'] = players['Price'] / 10
     players['selected_by_percent'] = pd.to_numeric(players['selected_by_percent'], errors='coerce')
     players.rename(columns={'selected_by_percent': 'Ownership'}, inplace=True)
-    return players, teams
+    return players, teams, fixtures
+
 
 # Define color palettes
 color_palettes = {
@@ -364,13 +365,17 @@ elif st.session_state.page == 'Fixtures':
         st.error(f"Error fetching fixtures: {e}") 
 # Best 11 Players for the Next Gameweek
 def get_best_11_players(players_df, top_n=11):
-    # Assume that `event` is the field to identify the current gameweek
+    if 'event' not in players_df.columns:
+        st.error("The 'event' column is missing from the player data.")
+        return pd.DataFrame()  # Return an empty DataFrame
+    
     next_gameweek = players_df['event'].max() + 1
     next_gameweek_players = players_df[players_df['event'] == next_gameweek]
     
     # Example sorting by total points; you might want to adjust based on your criteria
     best_11 = next_gameweek_players.sort_values(by='total_points', ascending=False).head(top_n)
     return best_11
+
 
 if 'Best 11 Players' not in st.session_state:
     st.session_state.best_11_players = get_best_11_players(st.session_state.players)
