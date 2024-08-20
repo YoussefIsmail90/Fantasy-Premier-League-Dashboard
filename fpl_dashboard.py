@@ -461,3 +461,11 @@ elif st.session_state.page == 'Best Players':
             st.write(top_11_players[['first_name', 'second_name', 'team', 'position', 'next_match_difficulty', 'opponent_team'] + selected_metrics])
     else:
         st.error("The 'position' column is missing in the data.")
+    # Check data types of columns in players DataFrame
+st.write("Players DataFrame column data types:")
+st.write(players.dtypes)
+
+# Check data types of columns in fixtures DataFrame
+st.write("Fixtures DataFrame column data types:")
+st.write(fixtures_df.dtypes)
+
