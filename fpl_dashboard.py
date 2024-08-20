@@ -391,6 +391,8 @@ elif st.session_state.page == 'Best Players':
         response = requests.get(fixtures_url)
         fixtures = response.json()
         fixtures_df = pd.DataFrame(fixtures)
+        
+        # Map team IDs to team names
         fixtures_df['team_code'] = fixtures_df.apply(
             lambda row: row['team_a'] if row['team_a'] in players['team'].values else row['team_h'],
             axis=1
@@ -403,8 +405,12 @@ elif st.session_state.page == 'Best Players':
             lambda row: row['team_h'] if row['team_a'] in players['team'].values else row['team_a'],
             axis=1
         )
+        
+        # Ensure the 'team' column in players matches 'team_code' in fixtures
+        fixtures_df['team_code'] = fixtures_df['team_code'].astype(str)
+        players['team'] = players['team'].astype(str)
 
-        # Map fixture information to players_df
+        # Merge fixtures data with players data
         players_with_fixtures = players.merge(
             fixtures_df[['team_code', 'next_match_difficulty', 'opponent_team']],
             left_on='team',
@@ -459,14 +465,8 @@ elif st.session_state.page == 'Best Players':
             
             st.subheader("Detailed Player Information")
             st.write(top_11_players[['first_name', 'second_name', 'team', 'position', 'next_match_difficulty', 'opponent_team'] + selected_metrics])
-            st.write("Players DataFrame column data types:")
-            st.write(players.dtypes)
-            
-            # Check data types of columns in fixtures DataFrame
-            st.write("Fixtures DataFrame column data types:")
-            st.write(fixtures_df.dtypes)
     else:
         st.error("The 'position' column is missing in the data.")
-    # Check data types of columns in players DataFrame
+
 
 
