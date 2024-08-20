@@ -226,20 +226,6 @@ if st.session_state.page == 'Home':
 
     st.plotly_chart(fig_combined)
 
-    # Best 11 Players for the Next Game Week
-    st.subheader("Best 11 Players for the Next Game Week")
-
-    if 'fpl_data' in st.session_state and 'gameweek_data' in st.session_state:
-        players = st.session_state.players
-        gameweek_data = st.session_state.gameweek_data
-
-        # Determine the best 11 players
-        best_11_players = determine_best_11_players(players, gameweek_data)
-
-        st.write(best_11_players)
-    else:
-        st.write("Please refresh data to see the best 11 players.")
-
 
 
 elif st.session_state.page == 'Compare Players':
