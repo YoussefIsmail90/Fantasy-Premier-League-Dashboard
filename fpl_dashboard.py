@@ -102,7 +102,7 @@ total_players = len(st.session_state.players)
 st.title("Fantasy Premier League Dashboard")
 
 # Create layout for navigation buttons
-col1, col2, col3, col4, col5, col6 , col7 = st.columns([1, 1, 1, 1, 1, 1, 1])
+col1, col2, col3, col4, col5, col6  = st.columns([1, 1, 1, 1, 1, 1])
 
 
 with col1:
@@ -123,9 +123,6 @@ with col5:
 with col6:
     if st.button("Fixtures"):
         navigate_to("Fixtures")
-with col7:
-    if st.button("Best 11 Players"):
-        navigate_to("Best 11 Players")
 
 
 # Page content based on navigation state
@@ -140,6 +137,70 @@ if st.session_state.page == 'Home':
         selected_palette_name = st.selectbox("Select Color Palette:", options=list(color_palettes.keys()))
         color_palette = color_palettes.get(selected_palette_name, px.colors.sequential.Plasma)
         st.session_state.team_colors = get_team_colors(st.session_state.players, color_palette)
+        
+
+
+    st.header("Best 11 Players for the Next Game Week")
+
+    # Ensure the necessary columns are present
+    required_columns = ['minutes', 'goals_scored', 'assists', 'clean_sheets', 'goals_conceded', 'influence',
+                        'creativity', 'threat', 'expected_goals', 'expected_assists', 'position']
+    for col in required_columns:
+        if col not in st.session_state.players.columns:
+            st.error(f"Missing column: {col}")
+            st.stop()
+
+    # Define positions
+    positions = {
+        'Goalkeeper': 1,
+        'Defender': 4,
+        'Midfielder': 3,
+        'Forward': 2
+    }
+
+    # Rank players based on metrics
+    def rank_players(df):
+        # Combine metrics into a single score
+        df['score'] = (df['minutes'] * 0.1 +
+                       df['goals_scored'] * 3 +
+                       df['assists'] * 3 +
+                       df['clean_sheets'] * 4 -
+                       df['goals_conceded'] * 1 +
+                       df['influence'] * 0.2 +
+                       df['creativity'] * 0.2 +
+                       df['threat'] * 0.2 +
+                       df['expected_goals'] * 2 +
+                       df['expected_assists'] * 2)
+        return df.sort_values(by='score', ascending=False)
+
+    ranked_players = rank_players(st.session_state.players)
+
+    # Select players based on position
+    best_players = []
+    for pos, count in positions.items():
+        position_players = ranked_players[ranked_players['position'] == pos].head(count)
+        best_players.append(position_players)
+
+    best_11 = pd.concat(best_players)
+    best_11 = best_11[['first_name', 'second_name', 'team', 'position', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals', 'expected_assists']]
+    
+    st.write(f"**Best 11 Players for the Next Game Week**")
+    st.dataframe(best_11)
+
+    st.subheader("Visualization of Top Players")
+    fig_best_11 = px.bar(
+        best_11,
+        x='second_name',
+        y='total_points',
+        color='team',
+        title="Top 11 Players by Total Points",
+        labels={'second_name': 'Player', 'total_points': 'Total Points'},
+        height=500,
+        color_discrete_map=st.session_state.team_colors
+    )
+    fig_best_11.update_layout(template="plotly_dark")
+    st.plotly_chart(fig_best_11)
+    
     
     st.subheader("Top Players by Total Points")
     
@@ -367,67 +428,3 @@ elif st.session_state.page == 'Fixtures':
 
     except requests.RequestException as e:
         st.error(f"Error fetching fixtures: {e}")
-
-
-elif st.session_state.page == 'Best 11 Players':
-    st.header("Best 11 Players for the Next Game Week")
-
-    # Ensure the necessary columns are present
-    required_columns = ['minutes', 'goals_scored', 'assists', 'clean_sheets', 'goals_conceded', 'influence',
-                        'creativity', 'threat', 'expected_goals', 'expected_assists', 'position']
-    for col in required_columns:
-        if col not in st.session_state.players.columns:
-            st.error(f"Missing column: {col}")
-            st.stop()
-
-    # Define positions
-    positions = {
-        'Goalkeeper': 1,
-        'Defender': 4,
-        'Midfielder': 3,
-        'Forward': 2
-    }
-
-    # Rank players based on metrics
-    def rank_players(df):
-        # Combine metrics into a single score
-        df['score'] = (df['minutes'] * 0.1 +
-                       df['goals_scored'] * 3 +
-                       df['assists'] * 3 +
-                       df['clean_sheets'] * 4 -
-                       df['goals_conceded'] * 1 +
-                       df['influence'] * 0.2 +
-                       df['creativity'] * 0.2 +
-                       df['threat'] * 0.2 +
-                       df['expected_goals'] * 2 +
-                       df['expected_assists'] * 2)
-        return df.sort_values(by='score', ascending=False)
-
-    ranked_players = rank_players(st.session_state.players)
-
-    # Select players based on position
-    best_players = []
-    for pos, count in positions.items():
-        position_players = ranked_players[ranked_players['position'] == pos].head(count)
-        best_players.append(position_players)
-
-    best_11 = pd.concat(best_players)
-    best_11 = best_11[['first_name', 'second_name', 'team', 'position', 'total_points', 'goals_scored', 'assists', 'clean_sheets', 'expected_goals', 'expected_assists']]
-    
-    st.write(f"**Best 11 Players for the Next Game Week**")
-    st.dataframe(best_11)
-
-    st.subheader("Visualization of Top Players")
-    fig_best_11 = px.bar(
-        best_11,
-        x='second_name',
-        y='total_points',
-        color='team',
-        title="Top 11 Players by Total Points",
-        labels={'second_name': 'Player', 'total_points': 'Total Points'},
-        height=500,
-        color_discrete_map=st.session_state.team_colors
-    )
-    fig_best_11.update_layout(template="plotly_dark")
-    st.plotly_chart(fig_best_11)
-
