@@ -9,19 +9,19 @@ import numpy as np
 # 1. PAGE & STYLE CONFIGURATION
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Premier League Next-Gen (Fixtures Removed)",
+    page_title="Premier League Next-Gen (Compare Players + Difficulty-Based Best XI)",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# A custom CSS to create a hero banner, floating button, etc.
+# Custom CSS for a "website" feel
 CUSTOM_CSS = """
 <style>
-/* Hide default Streamlit header/footer */
+/* Hide Streamlit's default header/footer */
 header, footer {visibility: hidden;}
 
 body {
-    background-color: #2b2b2b; /* Dark background */
+    background-color: #2b2b2b; 
     color: #f0f0f0;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
@@ -32,7 +32,6 @@ div[data-testid="stToolbar"] {
     position: fixed;
 }
 
-/* Hero Banner styling */
 .hero-banner {
     position: relative;
     text-align: center;
@@ -44,7 +43,6 @@ div[data-testid="stToolbar"] {
     justify-content: center;
     align-items: center;
 }
-
 .hero-text h1 {
     font-size: 3rem;
     font-weight: 700;
@@ -75,19 +73,15 @@ div[data-testid="stToolbar"] {
     transition: 0.3s;
     z-index: 9999;
 }
-
 .floating-btn:hover {
     background-color: #CC0000;
 }
-
 hr {
     border: 1px solid #555;
     margin: 2rem 0;
 }
 </style>
 """
-
-# Inject the custom CSS
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
@@ -99,13 +93,17 @@ if "players" not in st.session_state:
     st.session_state["players"] = pd.DataFrame()
 if "clubs" not in st.session_state:
     st.session_state["clubs"] = pd.DataFrame()
+if "club_difficulty" not in st.session_state:
+    st.session_state["club_difficulty"] = pd.DataFrame()
 
 # ------------------------------------------------------------------------------
 # 3. DATA FETCHING & PREPARATION
 # ------------------------------------------------------------------------------
 @st.cache_data(ttl=60 * 60)
 def fetch_fpl_data():
-    """Fetch raw JSON from the official FPL 'bootstrap-static' endpoint."""
+    """
+    Fetch raw JSON from the official FPL 'bootstrap-static' endpoint.
+    """
     try:
         url = "https://fantasy.premierleague.com/api/bootstrap-static/"
         resp = requests.get(url)
@@ -172,18 +170,96 @@ def prepare_data(data):
 
     return players_df, clubs_df
 
+@st.cache_data(ttl=60 * 60)
+def fetch_fixtures_data():
+    """
+    Minimal fixture fetch from FPL's '/fixtures/' endpoint to compute
+    each club's next difficulty for the Best XI.
+    """
+    try:
+        url = "https://fantasy.premierleague.com/api/fixtures/"
+        resp = requests.get(url)
+        resp.raise_for_status()
+        return pd.DataFrame(resp.json())
+    except requests.RequestException as e:
+        st.error(f"Error fetching fixture data: {e}")
+        return pd.DataFrame()
+
+def compute_next_fixture_difficulty(clubs_df):
+    """
+    For each club, find the earliest *un-finished* fixture
+    and record its difficulty. Return a DataFrame with:
+       club, club_next_difficulty
+    We'll do: 'team_h_difficulty' if the club is home,
+              'team_a_difficulty' if the club is away.
+    """
+    fix_df = fetch_fixtures_data()
+    if fix_df.empty:
+        return pd.DataFrame(columns=["club", "club_next_difficulty"])
+
+    # Convert to datetime
+    fix_df["kickoff_time"] = pd.to_datetime(fix_df["kickoff_time"], errors="coerce")
+
+    # Keep only future or un-finished fixtures
+    fix_df = fix_df[fix_df["finished"] == False].copy()
+    if fix_df.empty:
+        return pd.DataFrame(columns=["club", "club_next_difficulty"])
+
+    # Map club IDs -> names
+    id_map = dict(zip(clubs_df["id"], clubs_df["name"]))
+    fix_df["HomeName"] = fix_df["team_h"].map(id_map)
+    fix_df["AwayName"] = fix_df["team_a"].map(id_map)
+
+    fix_df.rename(columns={
+        "team_h_difficulty": "HomeDiff",
+        "team_a_difficulty": "AwayDiff"
+    }, inplace=True)
+
+    fix_df.sort_values("kickoff_time", inplace=True)
+
+    # home
+    home_df = fix_df[["HomeName", "HomeDiff", "kickoff_time"]].dropna(subset=["HomeName"])
+    home_df["club"] = home_df["HomeName"]
+    home_df["club_next_difficulty"] = home_df["HomeDiff"]
+    home_df.sort_values("kickoff_time", inplace=True)
+    home_df = home_df.groupby("club", as_index=False).first()
+    home_df = home_df[["club", "club_next_difficulty"]]
+
+    # away
+    away_df = fix_df[["AwayName", "AwayDiff", "kickoff_time"]].dropna(subset=["AwayName"])
+    away_df["club"] = away_df["AwayName"]
+    away_df["club_next_difficulty"] = away_df["AwayDiff"]
+    away_df.sort_values("kickoff_time", inplace=True)
+    away_df = away_df.groupby("club", as_index=False).first()
+    away_df = away_df[["club", "club_next_difficulty"]]
+
+    combined_df = pd.concat([home_df, away_df], ignore_index=True)
+    combined_df.sort_values("club_next_difficulty", inplace=True)
+    combined_df = combined_df.groupby("club", as_index=False).first()
+
+    return combined_df
+
 def refresh_data():
-    """Re-fetch data and populate session state."""
+    """
+    Fetch new data, prepare players/clubs, compute next fixture difficulty,
+    and store everything in session state.
+    """
     raw_data = fetch_fpl_data()
-    st.session_state["raw_fpl_data"] = raw_data
     p_df, c_df = prepare_data(raw_data)
+
+    if not c_df.empty:
+        difficulty_df = compute_next_fixture_difficulty(c_df)
+    else:
+        difficulty_df = pd.DataFrame(columns=["club", "club_next_difficulty"])
+
+    st.session_state["raw_fpl_data"] = raw_data
     st.session_state["players"], st.session_state["clubs"] = p_df, c_df
+    st.session_state["club_difficulty"] = difficulty_df
 
 # ------------------------------------------------------------------------------
 # 4. PAGE SECTIONS / TABS
 # ------------------------------------------------------------------------------
 
-# Hero Banner
 def hero_banner():
     st.markdown(
         """
@@ -198,9 +274,6 @@ def hero_banner():
     )
 
 def instructions_expander():
-    """
-    Provides a collapsible section with instructions or tips on using the site.
-    """
     with st.expander("Click for Quick Instructions & Navigation Tips"):
         st.write("""
         **Navigation**:
@@ -208,16 +281,18 @@ def instructions_expander():
         - Each tab has a unique feature: from 'Overview' to 'Best XI'.
         
         **Data Refresh**:
-        - At any point, click the **floating refresh button** at the bottom-right 
-          corner to re-fetch the latest FPL data from the official API.
+        - Click the **floating refresh button** at the bottom-right 
+          corner to re-fetch the latest FPL data & fixture difficulties.
         
-        **Some Key Features**:
+        **Key Features**:
         - **Overview**: Quick glance at top players by total points.
         - **Search Player**: Search by last name substring (and see player images).
         - **Compare Clubs**: Compare aggregated stats between two clubs.
+        - **Compare Players**: Compare multiple players side by side (with photos).
         - **Best Players**: Position-based top performers by advanced metrics.
         - **Advanced Explorer**: Pick any numeric columns for a custom scatter plot.
-        - **Best XI**: Our recommended lineup based on total points & form (1-4-3-3).
+        - **Best XI**: Incorporates next fixture difficulty into the scoring formula 
+          (1-4-3-3 formation).
         
         Enjoy exploring the data!
         """)
@@ -230,7 +305,6 @@ def tab_overview(players_df):
         return
 
     top_players = players_df.sort_values("total_points", ascending=False).head(30)
-
     fig = px.bar(
         top_players,
         x="last_name",
@@ -261,28 +335,19 @@ def tab_search_player(players_df):
         st.warning("No data.")
         return
 
-    # We rely on the 'photo' column from the raw FPL data (elements).
-    # Example value: '218753.jpg' -> We'll produce a URL: 
-    # "https://resources.premierleague.com/premierleague/photos/players/110x140/p218753.png"
-    # by parsing the numeric portion of the filename.
-
-    name_query = st.text_input("Type part of a last name (e.g., 'Kane'):")
+    name_query = st.text_input("Type part of a last name (e.g., 'Salah'):")
     if name_query:
-        # Filter players whose 'last_name' contains the query
         results = players_df[players_df["last_name"].str.contains(name_query, case=False, na=False)]
         if results.empty:
             st.info("No matching players found.")
         else:
             st.write(f"**Found {len(results)} player(s).**")
             for idx, row in results.iterrows():
-                # Construct the player photo URL if 'photo' field is valid
-                photo_str = row.get("photo", "")  # e.g. "218753.jpg"
-                # Attempt to parse the numeric portion
+                photo_str = row.get("photo", "")
                 if photo_str.endswith(".jpg"):
                     numeric_part = photo_str.replace(".jpg", "")
                     photo_url = f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{numeric_part}.png"
                 else:
-                    # Fallback if we don't have a valid photo pattern
                     photo_url = "https://via.placeholder.com/110x140.png?text=No+Image"
 
                 st.markdown(f"### {row['first_name']} {row['last_name']}")
@@ -338,7 +403,68 @@ def tab_team_comparison(players_df, clubs_df):
         fig.update_layout(template="plotly_dark")
         st.plotly_chart(fig)
 
-# --- 4d. Best Players ---
+# --- 4d. Compare Players (Multi-select with Photos) ---
+def tab_compare_players(players_df):
+    """
+    Allows the user to select multiple players from a dropdown,
+    then displays each player's stats + photo side by side or in a grid.
+    """
+    st.markdown("## Compare Players (Photos + Stats)")
+
+    if players_df.empty:
+        st.warning("No player data available.")
+        return
+
+    # Sort by last_name for an easier selection
+    player_list = sorted(players_df["last_name"].unique().tolist())
+    selected_players = st.multiselect(
+        "Select one or more players to compare:",
+        options=player_list
+    )
+
+    if not selected_players:
+        st.info("No players selected.")
+        return
+
+    # For each selected player, find row in players_df
+    selected_df = players_df[players_df["last_name"].isin(selected_players)]
+
+    # We'll display them in columns
+    # If many players (e.g. 5), we can do up to 5 columns across
+    # but let's just do a dynamic approach
+    n_players = len(selected_df)
+    max_cols = min(n_players, 5)  # up to 5 columns
+
+    if n_players > 5:
+        st.warning("Displaying first 5 players only for layout clarity.")
+        selected_df = selected_df.head(5)
+
+    # Create the columns
+    cols = st.columns(max_cols)
+
+    for idx, (i, row) in enumerate(selected_df.iterrows()):
+        col_index = idx % max_cols  # which column to place this player
+        with cols[col_index]:
+            # Construct the player photo
+            photo_str = row.get("photo", "")
+            if photo_str.endswith(".jpg"):
+                numeric_part = photo_str.replace(".jpg", "")
+                photo_url = f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{numeric_part}.png"
+            else:
+                photo_url = "https://via.placeholder.com/110x140.png?text=No+Image"
+
+            st.image(photo_url, width=110)
+            st.markdown(f"### {row['first_name']} {row['last_name']}")
+            st.write(f"**Club**: {row['club']}")
+            st.write(f"**Position**: {row['position']}")
+            st.write(f"**Total Points**: {row['total_points']}")
+            st.write(f"**Goals**: {row['goals_scored']}")
+            st.write(f"**Assists**: {row['assists']}")
+            st.write(f"**Clean Sheets**: {row['clean_sheets']}")
+            st.write(f"**Cost**: £{row['cost']}m")
+            st.write(f"**Popularity**: {row['popularity']}%")
+
+# --- 4e. Best Players ---
 def tab_best_players(players_df):
     st.markdown("## Best Players by Position")
     if players_df.empty or "position" not in players_df.columns:
@@ -376,7 +502,7 @@ def tab_best_players(players_df):
 
     st.dataframe(top_10[["first_name", "last_name", "club", "position"] + relevant_metrics])
 
-# --- 4e. Advanced Explorer ---
+# --- 4f. Advanced Explorer ---
 def tab_advanced(players_df):
     st.markdown("## Advanced Explorer (Scatter Plot)")
     if players_df.empty:
@@ -413,25 +539,47 @@ def tab_advanced(players_df):
     fig.update_layout(title=f"{x_metric} vs {y_metric}")
     st.plotly_chart(fig)
 
-# --- 4f. Best XI ---
-def tab_best_xi(players_df):
-    st.markdown("## Best XI (1-4-3-3) by Points & Form")
+# --- 4g. Best XI with Difficulty Consideration ---
+def tab_best_xi(players_df, difficulty_df):
+    """
+    1) Merge each player's club to 'club_next_difficulty' from difficulty_df
+    2) Compute: score_for_best_xi = total_points + 2*form + (5 - club_next_difficulty)
+    3) Pick a 1-4-3-3 squad
+    """
+    st.markdown("## Best XI (1-4-3-3) with Difficulty Factor")
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No player data or missing 'position' info.")
         return
 
-    # Weighted formula: total_points + 2×form
-    players_df["score_for_best_xi"] = players_df["total_points"] + 2.0 * players_df["form"]
+    # If difficulty_df is empty, default = 3
+    if difficulty_df.empty:
+        players_df["club_next_difficulty"] = 3
+    else:
+        # Merge on 'club'
+        players_df = players_df.merge(
+            difficulty_df,
+            on="club",
+            how="left"
+        )
+        # Fill missing with 3
+        players_df["club_next_difficulty"] = players_df["club_next_difficulty"].fillna(3)
+
+    # Weighted formula
+    players_df["score_for_best_xi"] = (
+        players_df["total_points"] 
+        + 2.0 * players_df["form"] 
+        + (5.0 - players_df["club_next_difficulty"])
+    )
 
     # 1 GK, 4 Def, 3 Mid, 3 Fwd
-    gk = players_df[players_df["position"] == "Goalkeeper"]\
-        .sort_values("score_for_best_xi", ascending=False).head(1)
-    defenders = players_df[players_df["position"] == "Defender"]\
-        .sort_values("score_for_best_xi", ascending=False).head(4)
-    mids = players_df[players_df["position"] == "Midfielder"]\
-        .sort_values("score_for_best_xi", ascending=False).head(3)
-    fwds = players_df[players_df["position"] == "Forward"]\
-        .sort_values("score_for_best_xi", ascending=False).head(3)
+    def pick_top_n(position, n):
+        subset = players_df[players_df["position"] == position]
+        return subset.sort_values("score_for_best_xi", ascending=False).head(n)
+
+    gk = pick_top_n("Goalkeeper", 1)
+    defenders = pick_top_n("Defender", 4)
+    mids = pick_top_n("Midfielder", 3)
+    fwds = pick_top_n("Forward", 3)
 
     best_11 = pd.concat([gk, defenders, mids, fwds]).copy()
 
@@ -441,7 +589,7 @@ def tab_best_xi(players_df):
         y="score_for_best_xi",
         color="club",
         color_discrete_sequence=px.colors.qualitative.Pastel2,
-        title="Recommended XI (Weighted by total_points + 2×form)"
+        title="Recommended XI (Weighted by Points, Form, and Next Fixture Difficulty)"
     )
     fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title="Score")
     st.plotly_chart(fig)
@@ -449,26 +597,26 @@ def tab_best_xi(players_df):
     st.write("### Detailed Best XI Table")
     columns_to_show = [
         "first_name","last_name","club","position","total_points","form",
-        "score_for_best_xi","goals_scored","assists","clean_sheets","cost"
+        "club_next_difficulty","score_for_best_xi","goals_scored","assists","clean_sheets","cost"
     ]
     st.dataframe(best_11[columns_to_show])
 
-# ------------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 # 5. MAIN APP
-# ------------------------------------------------------------------------------
-# 5a. Ensure data is loaded
-if st.session_state["players"].empty or st.session_state["clubs"].empty:
+# ----------------------------------------------------------------------
+if "players" not in st.session_state or st.session_state["players"].empty:
     refresh_data()
 
-# 5b. Hero Banner & Intro
+# Hero Banner & Intro
 hero_banner()
 instructions_expander()
 
-# 5c. Tabs (Fixtures Tab Removed)
+# Tabs (Includes 'Compare Players' but no full fixtures tab)
 tab_labels = [
     "Overview", 
     "Search Player", 
     "Compare Clubs", 
+    "Compare Players",
     "Best Players", 
     "Advanced Explorer", 
     "Best XI"
@@ -482,13 +630,15 @@ with tabs[1]:
 with tabs[2]:
     tab_team_comparison(st.session_state["players"], st.session_state["clubs"])
 with tabs[3]:
-    tab_best_players(st.session_state["players"])
+    tab_compare_players(st.session_state["players"])
 with tabs[4]:
-    tab_advanced(st.session_state["players"])
+    tab_best_players(st.session_state["players"])
 with tabs[5]:
-    tab_best_xi(st.session_state["players"])
+    tab_advanced(st.session_state["players"])
+with tabs[6]:
+    tab_best_xi(st.session_state["players"], st.session_state["club_difficulty"])
 
-# 5d. Floating Refresh Button
+# Floating Refresh Button
 st.markdown(
     """
     <button class="floating-btn" onclick="window.location.reload();">
