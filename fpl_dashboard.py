@@ -9,7 +9,7 @@ import numpy as np
 # 1. PAGE & STYLE CONFIGURATION
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Premier League Next-Gen (Compare Players + Difficulty-Based Best XI)",
+    page_title="Premier League Next-Gen ",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -59,8 +59,8 @@ div[data-testid="stToolbar"] {
 
 .floating-btn {
     position: fixed;
-    bottom: 25px;
-    right: 25px;
+    top: 25px;      /* Position from the top */
+    right: 25px;    /* Position from the right */
     background-color: #FF4B4B;
     border: none;
     outline: none;
@@ -73,6 +73,10 @@ div[data-testid="stToolbar"] {
     transition: 0.3s;
     z-index: 9999;
 }
+.floating-btn:hover {
+    background-color: #CC0000;
+}
+
 .floating-btn:hover {
     background-color: #CC0000;
 }
