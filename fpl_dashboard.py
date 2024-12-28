@@ -299,34 +299,62 @@ def instructions_expander():
 
 # --- 4a. Overview ---
 def tab_overview(players_df):
-    st.markdown("## Overview: Top 30 Players by Total Points")
+    """
+    Enhanced Overview:
+    1) Lets users pick a 'metric' to rank players (e.g., 'total_points', 'goals_scored', etc.).
+    2) Allows a slider to choose how many top players to display (from 5 up to 50).
+    3) Displays a bar chart + a detailed stats table with the chosen top players.
+    """
+    st.markdown("## Overview: Explore Top Performers by Your Preferred Metric")
+    
+    # If there's no data, bail out
     if players_df.empty:
         st.warning("No player data available.")
         return
-
-    top_players = players_df.sort_values("total_points", ascending=False).head(30)
+    
+    # Define a few interesting metrics users might want to sort by
+    metric_options = [
+        "total_points", "goals_scored", "assists", 
+        "clean_sheets", "minutes_played", "popularity", 
+        "cost", "form"
+    ]
+    
+    # Let the user pick which metric to rank by
+    chosen_metric = st.selectbox("Choose a Metric to Rank Players By:", metric_options, index=0)
+    
+    # Let the user pick how many players to display
+    top_n = st.slider("How many top players to display?", min_value=5, max_value=50, value=10)
+    
+    # Sort players by the chosen metric (descending) and pick top_n
+    top_players = players_df.sort_values(by=chosen_metric, ascending=False).head(top_n)
+    
+    # Display a bar chart
+    st.write(f"### Top {top_n} Players by **{chosen_metric}**")
     fig = px.bar(
         top_players,
         x="last_name",
-        y="total_points",
+        y=chosen_metric,
         color="club",
-        color_discrete_sequence=px.colors.qualitative.Pastel2,
-        title="Top Scoring Players"
+        title=f"Top {top_n} by {chosen_metric}",
+        color_discrete_sequence=px.colors.qualitative.Pastel2
     )
-    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title="Points")
+    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title=chosen_metric.capitalize())
     st.plotly_chart(fig)
-
-    st.write("#### Quick Stats Table")
+    
+    # Display a stats table
+    st.write("### Detailed Stats Table")
     st.dataframe(
         top_players[
             [
                 "first_name", "last_name", "club", "position", 
                 "total_points", "goals_scored", "assists", 
-                "clean_sheets", "cost", "popularity"
+                "clean_sheets", "cost", "popularity", "form", 
+                "hours_played"
             ]
         ],
-        height=500
+        height=600
     )
+
 
 # --- 4b. Search Player (with Images) ---
 def tab_search_player(players_df):
