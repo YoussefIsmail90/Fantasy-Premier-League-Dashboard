@@ -201,18 +201,14 @@ def tab_team_comparison(players_df, clubs_df):
         fig.update_layout(template="plotly_dark")
         st.plotly_chart(fig)
 
-import datetime  # Make sure to import datetime
+import datetime
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+import requests
 
 def tab_fixtures(clubs_df):
-    """
-    Enhanced Fixtures Tab:
-    - Team filter
-    - Status filter (Upcoming / Finished / All)
-    - Date range filter
-    - Date-grouped bar chart
-    - Detailed fixtures table
-    """
-    st.subheader("Upcoming & Recent Fixtures - Enhanced")
+    st.subheader("Enhanced Fixtures with Defensive Checks")
 
     try:
         # Fetch fixtures
@@ -221,17 +217,16 @@ def tab_fixtures(clubs_df):
         fixtures_json = resp.json()
         fix_df = pd.DataFrame(fixtures_json)
 
-        # If no data, bail out
         if fix_df.empty:
             st.write("No fixture data found.")
             return
 
-        # Convert to datetime & split date/time
+        # Convert to datetime
         fix_df["kickoff_time"] = pd.to_datetime(fix_df["kickoff_time"], errors="coerce")
         fix_df["Date"] = fix_df["kickoff_time"].dt.date
         fix_df["Time"] = fix_df["kickoff_time"].dt.strftime("%H:%M")
 
-        # Map team IDs to names if clubs are available
+        # Map club IDs (if clubs_df not empty)
         if not clubs_df.empty:
             id_map = dict(zip(clubs_df["id"], clubs_df["name"]))
             fix_df["Home"] = fix_df["team_h"].map(id_map)
@@ -240,36 +235,33 @@ def tab_fixtures(clubs_df):
             fix_df["Home"] = fix_df["team_h"]
             fix_df["Away"] = fix_df["team_a"]
 
-        # Scores & Status
         fix_df["Home Score"] = fix_df.get("team_h_score", None)
         fix_df["Away Score"] = fix_df.get("team_a_score", None)
-
-        # Determine match status
         fix_df["Status"] = fix_df.apply(lambda x: "Finished" if x["finished"] else "Upcoming", axis=1)
 
-        # Basic columns to show
-        show_cols = ["Date", "Time", "Home", "Away", "Home Score", "Away Score", "Status"]
-        fix_df = fix_df[show_cols]
+        columns_we_need = ["Date","Time","Home","Away","Home Score","Away Score","Status"]
+        fix_df = fix_df[columns_we_need]
 
-        # ----------------------------
-        # Sidebar-like filters
-        # ----------------------------
-        st.write("### Filter Options")
+        # Guard clause for empty or invalid 'Date' column
+        if fix_df["Date"].dropna().empty:
+            st.info("No valid fixture dates found.")
+            return
 
-        # 1) Filter by Team
-        filter_club = st.selectbox(
-            "Filter by Club:",
-            ["All"] + sorted(clubs_df["name"].unique()) if not clubs_df.empty else ["All"]
-        )
-
-        # 2) Filter by Status
-        filter_status = st.selectbox("Filter by Status:", ["All", "Upcoming", "Finished"])
-
-        # 3) Filter by Date Range
+        # Safely compute min/max
         min_date = fix_df["Date"].min()
         max_date = fix_df["Date"].max()
 
-        # Let user pick a start and end date
+        # Team filter
+        st.write("### Filter Options")
+        if not clubs_df.empty:
+            club_list = sorted(clubs_df["name"].dropna().unique().tolist())
+            filter_club = st.selectbox("Filter by Club:", ["All"] + club_list)
+        else:
+            filter_club = "All"
+
+        filter_status = st.selectbox("Filter by Status:", ["All","Upcoming","Finished"])
+
+        # Date range filter
         col_start, col_end = st.columns(2)
         with col_start:
             start_date = st.date_input(
@@ -285,66 +277,56 @@ def tab_fixtures(clubs_df):
                 min_value=min_date,
                 max_value=max_date
             )
-        
-        # Ensure start_date <= end_date
+
+        # Check date logic
         if start_date > end_date:
             st.warning("Start Date cannot be after End Date.")
             return
 
-        # ----------------------------
-        # Apply Filters
-        # ----------------------------
+        # Apply filters
         filtered_df = fix_df.copy()
-
-        # (a) Team
+        # (a) Filter by club
         if filter_club != "All":
             filtered_df = filtered_df[
                 (filtered_df["Home"] == filter_club) | (filtered_df["Away"] == filter_club)
             ]
-
-        # (b) Status
+        # (b) Filter by status
         if filter_status != "All":
             filtered_df = filtered_df[filtered_df["Status"] == filter_status]
-
         # (c) Date range
         filtered_df = filtered_df[
-            (filtered_df["Date"] >= start_date) & 
-            (filtered_df["Date"] <= end_date)
+            (filtered_df["Date"] >= start_date) & (filtered_df["Date"] <= end_date)
         ]
 
-        # ----------------------------
-        # Quick Stats: Group by Date
-        # ----------------------------
-        if not filtered_df.empty:
-            st.write("### Fixtures by Date")
-            fixture_counts = filtered_df.groupby("Date").size().reset_index(name="Num Fixtures")
-            # Sort by date
-            fixture_counts.sort_values("Date", inplace=True)
-
-            fig_counts = px.bar(
-                fixture_counts,
-                x="Date",
-                y="Num Fixtures",
-                title="Number of Fixtures per Date (Filtered)",
-                text="Num Fixtures",
-                color_discrete_sequence=["#EB89B5"],  # Example color
-                labels={"Date": "Match Date", "Num Fixtures": "Count"}
-            )
-            fig_counts.update_layout(template="plotly_dark")
-            fig_counts.update_traces(textposition="outside")
-            st.plotly_chart(fig_counts)
-        else:
+        if filtered_df.empty:
             st.info("No fixtures match your filters.")
             return
 
-        # ----------------------------
-        # Show Detailed Table
-        # ----------------------------
+        # Plot how many fixtures per day
+        st.write("### Fixtures by Date")
+        fixture_counts = filtered_df.groupby("Date").size().reset_index(name="Num Fixtures")
+        fixture_counts.sort_values("Date", inplace=True)
+
+        fig_counts = px.bar(
+            fixture_counts,
+            x="Date",
+            y="Num Fixtures",
+            text="Num Fixtures",
+            title="Number of Fixtures per Date (Filtered)",
+            color_discrete_sequence=["#EB89B5"],
+            labels={"Date": "Match Date", "Num Fixtures": "Count"}
+        )
+        fig_counts.update_layout(template="plotly_dark")
+        fig_counts.update_traces(textposition="outside")
+        st.plotly_chart(fig_counts)
+
+        # Show table
         st.write("### Filtered Fixtures Table")
         st.dataframe(filtered_df, width=1200, height=500)
 
     except requests.RequestException as e:
         st.error(f"Cannot load fixtures: {e}")
+
 
 
 
