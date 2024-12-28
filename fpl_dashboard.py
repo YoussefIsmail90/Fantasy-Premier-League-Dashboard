@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Session State placeholders
+# Ensure these session variables exist
 if "fpl_data" not in st.session_state:
     st.session_state["fpl_data"] = {}
 if "players" not in st.session_state:
@@ -43,7 +43,7 @@ def fetch_fpl_data():
 def prepare_data(data):
     """
     Converts raw JSON data into structured DataFrames for players and teams.
-    Adds a 'position' column to players by mapping element_type.
+    Adds a 'position' column to players by mapping 'element_type'.
     """
     if not data:
         return pd.DataFrame(), pd.DataFrame()
@@ -52,12 +52,10 @@ def prepare_data(data):
     teams_df = pd.DataFrame(data.get("teams", []))
     positions_df = pd.DataFrame(data.get("element_types", []))
 
-    # Merge players with teams
+    # Merge players with teams (to get team names)
     if not players_df.empty:
         players_df = players_df.merge(
-            teams_df[["id", "name"]],
-            left_on="team", right_on="id",
-            how="left"
+            teams_df[["id", "name"]], left_on="team", right_on="id", how="left"
         )
         players_df.drop(columns=["id", "team_x"], errors="ignore", inplace=True)
         players_df.rename(columns={"team_y": "team"}, inplace=True)
@@ -75,11 +73,18 @@ def prepare_data(data):
 
     return players_df, teams_df
 
-def assign_team_colors(players, color_list):
+def assign_team_colors(players_df, color_list):
     """
-    Generates a color map for each unique team using the provided color palette.
+    Generates a color map for each unique team in the 'players' DataFrame,
+    using the provided color palette.
+    
+    We assume the players DataFrame has a column 'team' with the team names.
     """
-    unique_teams = players["name"].unique() if "name" in players.columns else players["team"].unique()
+    if "team" not in players_df.columns or players_df.empty:
+        # If the DataFrame is empty or missing 'team', return an empty dict
+        return {}
+
+    unique_teams = players_df["team"].unique()
     return {
         team: color_list[i % len(color_list)]
         for i, team in enumerate(unique_teams)
@@ -94,9 +99,9 @@ def refresh_data():
     p, t = prepare_data(st.session_state["fpl_data"])
     st.session_state["players"], st.session_state["teams"] = p, t
 
-    # Assign default color palette
+    # Assign default color palette to players
     default_palette = px.colors.sequential.Plasma
-    st.session_state["team_colors"] = assign_team_colors(t, default_palette)
+    st.session_state["team_colors"] = assign_team_colors(p, default_palette)
 
 # ------------------------------------------------------------------------------
 # 4. Page Sections
@@ -123,8 +128,10 @@ def page_home():
     }
     chosen_palette_name = st.selectbox("Palette", list(palette_options.keys()))
     chosen_palette = palette_options[chosen_palette_name]
-    if not st.session_state["teams"].empty:
-        st.session_state["team_colors"] = assign_team_colors(st.session_state["teams"], chosen_palette)
+    
+    # Assign colors to the players DataFrame
+    if not st.session_state["players"].empty:
+        st.session_state["team_colors"] = assign_team_colors(st.session_state["players"], chosen_palette)
 
     st.write("---")
     st.subheader("Top 50 Players by Total Points")
@@ -176,8 +183,8 @@ def page_compare_players():
                    "Hours", "Ownership", "Price"]
         comp_data = {
             "Metric": metrics,
-            p1: [data1[m] for m in metrics],
-            p2: [data2[m] for m in metrics]
+            p1: [data1.get(m, 0) for m in metrics],
+            p2: [data2.get(m, 0) for m in metrics]
         }
         comp_df = pd.DataFrame(comp_data)
         fig = px.bar(comp_df, x="Metric", y=[p1, p2], barmode="group", title=f"{p1} vs {p2}")
@@ -224,7 +231,14 @@ def page_compare_teams():
             t1: team1_stats.values,
             t2: team2_stats.values
         })
-        fig = px.bar(comp_df, x="Metric", y=[t1, t2], barmode="group", title=f"{t1} vs {t2}")
+        fig = px.bar(
+            comp_df,
+            x="Metric",
+            y=[t1, t2],
+            barmode="group",
+            title=f"{t1} vs {t2}",
+            color_discrete_sequence=px.colors.qualitative.Prism
+        )
         fig.update_layout(template="plotly_dark")
         st.plotly_chart(fig)
 
@@ -325,7 +339,7 @@ def page_best_players():
 def page_advanced_explorer():
     """
     Provides an interactive scatter plot where users can pick any two stats
-    to explore relationships among players (e.g., Price vs. Ownership).
+    to explore among players (e.g., Price vs. Ownership).
     """
     st.markdown("## Advanced Explorer")
     st.write("Choose any **two metrics** to explore a scatter plot of all players.")
@@ -335,7 +349,6 @@ def page_advanced_explorer():
         st.warning("No player data available.")
         return
 
-    # Let user pick x and y metrics
     numeric_cols = [
         "total_points", "goals_scored", "assists", "clean_sheets", 
         "Hours", "Ownership", "Price", "yellow_cards", "red_cards", 
@@ -344,11 +357,9 @@ def page_advanced_explorer():
     ]
     x_col = st.selectbox("X-axis", numeric_cols, index=numeric_cols.index("Price"))
     y_col = st.selectbox("Y-axis", numeric_cols, index=numeric_cols.index("Ownership"))
-
     color_choice = st.selectbox("Color By", ["team", "position"])
     size_choice = st.selectbox("Bubble Size", ["None"] + numeric_cols, index=0)
 
-    # Create scatter plot
     scatter_kwargs = dict(
         data_frame=players_df,
         x=x_col,
@@ -359,12 +370,11 @@ def page_advanced_explorer():
     )
     if size_choice != "None":
         scatter_kwargs["size"] = size_choice
-        scatter_kwargs["size_max"] = 25  # maximum bubble size
+        scatter_kwargs["size_max"] = 25
 
     fig = px.scatter(**scatter_kwargs)
     fig.update_layout(title=f"{x_col} vs. {y_col}", hovermode="closest")
     st.plotly_chart(fig)
-
 
 # --- 4i. Player Radar Chart ---
 def page_player_radar():
@@ -392,14 +402,13 @@ def page_player_radar():
         "Ownership", "Price", "influence", "creativity", "threat", 
         "expected_goals", "expected_assists"
     ]
-    selected_metrics = st.multiselect("Select Radar Metrics", metrics_choices, default=["total_points","goals_scored","assists"])
+    default_selection = ["total_points", "goals_scored", "assists"]
+    selected_metrics = st.multiselect("Select Radar Metrics", metrics_choices, default=default_selection)
 
-    # Retrieve data for the chosen player
     player_data = players_df[players_df["second_name"] == player_name].iloc[0]
     radar_values = []
     for metric in selected_metrics:
         val = player_data.get(metric, 0)
-        # Convert to float or 0 if missing
         val = float(val) if pd.notna(val) else 0.0
         radar_values.append(val)
 
@@ -407,7 +416,6 @@ def page_player_radar():
         st.warning("Radar charts typically need 3 or more metrics to display effectively!")
         return
 
-    # Use Plotly's line_polar for a radar chart
     # We'll close the polygon by repeating the first metric at the end
     r_values = radar_values + [radar_values[0]]
     theta_values = selected_metrics + [selected_metrics[0]]
@@ -437,7 +445,7 @@ def page_player_radar():
 def page_team_summary():
     """
     Aggregates stats at the team level and provides a quick view of
-    average 'goals_scored', 'assists', etc. per team in a bar chart.
+    average or sum of metrics for each team in a bar chart.
     """
     st.markdown("## Team-Level Summary Stats")
     st.write(
@@ -450,17 +458,18 @@ def page_team_summary():
         st.warning("No player data available.")
         return
 
-    # Let user choose the stat to aggregate
-    possible_stats = ["goals_scored", "assists", "clean_sheets", "total_points", 
-                      "expected_goals", "expected_assists", "Minutes"]
+    possible_stats = [
+        "goals_scored", "assists", "clean_sheets", "total_points", 
+        "expected_goals", "expected_assists", "Minutes"
+    ]
     chosen_stat = st.selectbox("Choose Stat to Summarize", possible_stats, index=0)
     agg_type = st.radio("Aggregation Type", ["Sum", "Average"], index=1)
 
     if agg_type == "Sum":
         agg_df = players_df.groupby("team")[chosen_stat].sum().reset_index()
-    else:  # "Average"
+    else:
         agg_df = players_df.groupby("team")[chosen_stat].mean().reset_index()
-    
+
     agg_df = agg_df.sort_values(chosen_stat, ascending=False)
 
     fig = px.bar(
@@ -479,8 +488,9 @@ def page_team_summary():
 # ------------------------------------------------------------------------------
 # 5. Main App
 # ------------------------------------------------------------------------------
+# If data is missing, fetch it now
 if st.session_state["players"].empty or st.session_state["teams"].empty:
-    refresh_data()  # Load data if empty
+    refresh_data()
 
 # Sidebar Navigation
 st.sidebar.title("FPL Dashboard")
@@ -499,7 +509,7 @@ page_options = [
 choice = st.sidebar.radio("Go to:", page_options)
 st.sidebar.button("Refresh Data", on_click=refresh_data)
 
-# Routing
+# Page Routing
 if choice == "Home":
     page_home()
 elif choice == "Compare Players":
