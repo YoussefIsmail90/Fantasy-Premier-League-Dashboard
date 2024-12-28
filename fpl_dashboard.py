@@ -57,22 +57,30 @@ div[data-testid="stToolbar"] {
     margin: 0 auto;
 }
 
+/* Example: A perfectly circular floating button in the top-right */
 .floating-btn {
     position: fixed;
-    top: 25px;      /* Position from the top */
-    right: 25px;    /* Position from the right */
+    top: 25px;        /* Position from the top */
+    right: 25px;      /* Position from the right */
+    width: 55px;      /* Fixed width to form a circle */
+    height: 55px;     /* Fixed height to form a circle */
+    border-radius: 50%;
     background-color: #FF4B4B;
     border: none;
     outline: none;
     color: white;
     cursor: pointer;
-    padding: 15px;
-    border-radius: 50%;
-    font-size: 20px;
+    font-size: 25px;  /* Larger text/icon size */
+    text-align: center;
+    line-height: 55px; /* Ensures icon/text is vertically centered */
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     transition: 0.3s;
     z-index: 9999;
 }
+.floating-btn:hover {
+    background-color: #CC0000;
+}
+
 .floating-btn:hover {
     background-color: #CC0000;
 }
