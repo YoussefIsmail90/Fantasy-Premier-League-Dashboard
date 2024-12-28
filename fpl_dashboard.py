@@ -410,7 +410,7 @@ def tab_compare_players(players_df):
     display each player's photo/stats, AND create a grouped bar chart
     comparing key metrics among all selected players.
     """
-    st.markdown("## Compare Players (Photos + Stats + Graph)")
+    st.markdown("## Compare Players)")
 
     if players_df.empty:
         st.warning("No player data available.")
