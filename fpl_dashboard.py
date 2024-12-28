@@ -407,9 +407,10 @@ def tab_team_comparison(players_df, clubs_df):
 def tab_compare_players(players_df):
     """
     Allows the user to select multiple players from a dropdown,
-    then displays each player's stats + photo side by side or in a grid.
+    display each player's photo/stats, AND create a grouped bar chart
+    comparing key metrics among all selected players.
     """
-    st.markdown("## Compare Players (Photos + Stats)")
+    st.markdown("## Compare Players (Photos + Stats + Graph)")
 
     if players_df.empty:
         st.warning("No player data available.")
@@ -426,26 +427,23 @@ def tab_compare_players(players_df):
         st.info("No players selected.")
         return
 
-    # For each selected player, find row in players_df
-    selected_df = players_df[players_df["last_name"].isin(selected_players)]
+    # Filter the main DataFrame
+    selected_df = players_df[players_df["last_name"].isin(selected_players)].copy()
 
-    # We'll display them in columns
-    # If many players (e.g. 5), we can do up to 5 columns across
-    # but let's just do a dynamic approach
+    # Cap the display at 5 players (to keep layout manageable)
     n_players = len(selected_df)
-    max_cols = min(n_players, 5)  # up to 5 columns
+    max_cols = min(n_players, 5)
 
     if n_players > 5:
-        st.warning("Displaying first 5 players only for layout clarity.")
+        st.warning("Displaying first 5 players only for side-by-side layout.")
         selected_df = selected_df.head(5)
 
-    # Create the columns
+    # Display each selected player's info in columns
     cols = st.columns(max_cols)
-
     for idx, (i, row) in enumerate(selected_df.iterrows()):
-        col_index = idx % max_cols  # which column to place this player
+        col_index = idx % max_cols
         with cols[col_index]:
-            # Construct the player photo
+            # Construct the player photo URL
             photo_str = row.get("photo", "")
             if photo_str.endswith(".jpg"):
                 numeric_part = photo_str.replace(".jpg", "")
@@ -463,6 +461,34 @@ def tab_compare_players(players_df):
             st.write(f"**Clean Sheets**: {row['clean_sheets']}")
             st.write(f"**Cost**: £{row['cost']}m")
             st.write(f"**Popularity**: {row['popularity']}%")
+
+    st.write("---")
+    st.markdown("### Comparison Chart")
+
+    # Decide which metrics to compare in the bar chart
+    metrics = ["total_points", "goals_scored", "assists", "clean_sheets", "cost"]
+
+    # Build a comparison DataFrame with rows = metrics, columns = players
+    chart_data = {"Metric": metrics}
+    for idx, (i, row) in enumerate(selected_df.iterrows()):
+        player_name = f"{row['first_name']} {row['last_name']}"
+        values = [row[m] for m in metrics]
+        chart_data[player_name] = values
+
+    comparison_df = pd.DataFrame(chart_data)
+
+    # Use Plotly Express to create a grouped bar chart
+    fig_comp = px.bar(
+        comparison_df,
+        x="Metric",
+        y=list(comparison_df.columns.drop("Metric")),  # All player columns
+        barmode="group",
+        title="Key Metrics Comparison",
+        labels={"value": "Value", "variable": "Player"},
+        template="plotly_dark"
+    )
+    fig_comp.update_layout(legend_title_text="Players")
+    st.plotly_chart(fig_comp)
 
 # --- 4e. Best Players ---
 def tab_best_players(players_df):
