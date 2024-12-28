@@ -330,7 +330,7 @@ def tab_overview(players_df):
 
 # --- 4b. Search Player (with Images) ---
 def tab_search_player(players_df):
-    st.markdown("## Search for a Player (with Photo)")
+    st.markdown("## Search for a Player")
     if players_df.empty:
         st.warning("No data.")
         return
