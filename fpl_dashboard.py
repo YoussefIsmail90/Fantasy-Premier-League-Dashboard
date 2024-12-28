@@ -4,25 +4,25 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 import numpy as np
-import random
+import datetime
 
 # ----------------------------------------------------------------------
 # 1. Page Configuration
 # ----------------------------------------------------------------------
 st.set_page_config(
-    page_title="Premier League Dashboard - New Look",
+    page_title="Premier League Dashboard - Enhanced Fixtures & Best XI",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ----------------------------------------------------------------------
-# 2. Session State Setup
+# 2. Session State Initialization
 # ----------------------------------------------------------------------
 if "raw_fpl_data" not in st.session_state:
     st.session_state["raw_fpl_data"] = {}
 if "players" not in st.session_state:
     st.session_state["players"] = pd.DataFrame()
-if "clubs" not in st.session_state:  # 'teams' -> 'clubs'
+if "clubs" not in st.session_state:
     st.session_state["clubs"] = pd.DataFrame()
 
 # ----------------------------------------------------------------------
@@ -30,12 +30,15 @@ if "clubs" not in st.session_state:  # 'teams' -> 'clubs'
 # ----------------------------------------------------------------------
 @st.cache_data(ttl=60 * 60)
 def fetch_fpl_data():
-    """Fetch raw JSON data from the official FPL 'bootstrap-static' endpoint."""
+    """
+    Fetch raw JSON from the official FPL 'bootstrap-static' endpoint.
+    Cached for 1 hour to reduce repeated calls.
+    """
     try:
         url = "https://fantasy.premierleague.com/api/bootstrap-static/"
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.json()
+        resp = requests.get(url)
+        resp.raise_for_status()
+        return resp.json()
     except requests.RequestException as e:
         st.error(f"Error fetching FPL data: {e}")
         return {}
@@ -43,13 +46,9 @@ def fetch_fpl_data():
 @st.cache_data(ttl=60 * 60)
 def prepare_data(data):
     """
-    Transform raw JSON data into structured DataFrames for players & clubs.
-    We rename some columns to give the app a fresh look:
-     - 'team' -> 'club_id'
-     - 'second_name' -> 'last_name'
-     - 'now_cost' -> 'cost'
-     - 'minutes' -> 'minutes_played'
-     - 'selected_by_percent' -> 'popularity'
+    Convert raw JSON into structured DataFrames for players & clubs.
+    Renames columns for a fresh look (e.g., 'team' -> 'club_id', etc.).
+    Adds 'hours_played' & 'popularity' columns, maps 'element_type' to 'position'.
     """
     if not data:
         return pd.DataFrame(), pd.DataFrame()
@@ -61,7 +60,7 @@ def prepare_data(data):
     if players_df.empty or clubs_df.empty:
         return players_df, clubs_df
 
-    # Rename columns for a new feel
+    # Rename columns
     players_df.rename(
         columns={
             "second_name": "last_name",
@@ -77,19 +76,22 @@ def prepare_data(data):
     players_df = players_df.merge(
         clubs_df[["id", "name"]], left_on="club_id", right_on="id", how="left"
     )
-    # Use 'club' to refer to the team's name
+    players_df.drop(columns=["id", "club_id"], inplace=True, errors="ignore")
     players_df.rename(columns={"name": "club"}, inplace=True)
 
-    # Convert cost to decimal
+    # Convert cost -> decimal
     players_df["cost"] = players_df["cost"] / 10.0
 
     # Convert minutes -> hours
     players_df["hours_played"] = players_df["minutes_played"] / 60.0
 
-    # Convert popularity to numeric
+    # Convert popularity -> numeric
     players_df["popularity"] = pd.to_numeric(players_df["popularity"], errors="coerce")
 
-    # Map element_type to position
+    # Convert form -> numeric (for Best XI scoring)
+    players_df["form"] = pd.to_numeric(players_df["form"], errors="coerce").fillna(0.0)
+
+    # Map element_type -> position
     if not positions_df.empty:
         id_to_position = dict(zip(positions_df["id"], positions_df["singular_name"]))
         players_df["position"] = players_df["element_type"].map(id_to_position)
@@ -97,17 +99,24 @@ def prepare_data(data):
     return players_df, clubs_df
 
 def refresh_data():
-    """Fetch new data and re-assign DataFrames in session state."""
-    data = fetch_fpl_data()
-    st.session_state["raw_fpl_data"] = data
-    p_df, c_df = prepare_data(data)
+    """
+    Fetch new data & reassign DataFrames in session state.
+    """
+    raw_data = fetch_fpl_data()
+    st.session_state["raw_fpl_data"] = raw_data
+    p_df, c_df = prepare_data(raw_data)
     st.session_state["players"], st.session_state["clubs"] = p_df, c_df
 
 # ----------------------------------------------------------------------
 # 4. Tabs / Page Functions
 # ----------------------------------------------------------------------
+
+# --- 4a. Overview ---
 def tab_overview(players_df):
-    """Overview tab: Top 30 players by total_points, with a Pastel color scheme."""
+    """
+    Shows a bar chart of the top 30 players by total_points
+    (using a pastel color palette) plus a quick stats table.
+    """
     st.subheader("Premier League Overview")
 
     if players_df.empty:
@@ -117,7 +126,6 @@ def tab_overview(players_df):
     st.write("### Top 30 Players (By Total Points)")
     top_players = players_df.sort_values("total_points", ascending=False).head(30)
 
-    # Use a pastel color palette for better aesthetics
     fig = px.bar(
         top_players,
         x="last_name",
@@ -141,9 +149,11 @@ def tab_overview(players_df):
         height=500
     )
 
-
+# --- 4b. Search Player ---
 def tab_search_player(players_df):
-    """Search for a specific player by last name."""
+    """
+    Allows a user to search for a player by last name substring.
+    """
     st.subheader("Find a Player")
     name_query = st.text_input("Type part of a last name (e.g. 'Rashford'):")
     if name_query:
@@ -161,9 +171,11 @@ def tab_search_player(players_df):
                 ]
             )
 
-
+# --- 4c. Compare Clubs ---
 def tab_team_comparison(players_df, clubs_df):
-    """Compare two clubs based on aggregated stats like points, goals, assists."""
+    """
+    Compare two clubs by aggregated stats (Points, Goals, Assists, Clean Sheets).
+    """
     st.subheader("Compare Two Clubs")
 
     if clubs_df.empty or players_df.empty:
@@ -195,22 +207,26 @@ def tab_team_comparison(players_df, clubs_df):
             x="Metric",
             y=[c1, c2],
             barmode="group",
-            color_discrete_sequence=["#FFC107", "#03A9F4"],
+            color_discrete_sequence=["#FFC107", "#03A9F4"],  # Example custom colors
             title=f"{c1} vs {c2}"
         )
         fig.update_layout(template="plotly_dark")
         st.plotly_chart(fig)
 
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-import requests
-
+# --- 4d. Fixtures (Enhanced) ---
 def tab_fixtures(clubs_df):
-    st.subheader("Enhanced Fixtures")
+    """
+    Enhanced Fixtures Tab:
+    - Team filter
+    - Status filter (All / Upcoming / Finished)
+    - Date range filter
+    - Bar chart (fixtures per date)
+    - Detailed fixture table
+    """
+    st.subheader("Upcoming & Recent Fixtures")
 
     try:
-        # 1) Fetch
+        # Fetch
         resp = requests.get("https://fantasy.premierleague.com/api/fixtures/")
         resp.raise_for_status()
         fix_df = pd.DataFrame(resp.json())
@@ -219,17 +235,17 @@ def tab_fixtures(clubs_df):
             st.info("No fixture data found.")
             return
 
-        # 2) Process datetime
+        # Convert times -> datetime
         fix_df["kickoff_time"] = pd.to_datetime(fix_df["kickoff_time"], errors="coerce")
         fix_df["Date"] = fix_df["kickoff_time"].dt.date
         fix_df["Time"] = fix_df["kickoff_time"].dt.strftime("%H:%M")
 
-        # If all invalid dates -> all NaT -> 'Date' is empty
+        # If all invalid
         if fix_df["Date"].dropna().empty:
-            st.info("No valid 'Date' found in fixture data.")
+            st.info("No valid fixture dates found.")
             return
 
-        # 3) Map IDs if clubs are known
+        # Map club IDs if clubs data is available
         if not clubs_df.empty and "id" in clubs_df.columns and "name" in clubs_df.columns:
             id_map = dict(zip(clubs_df["id"], clubs_df["name"]))
             fix_df["Home"] = fix_df["team_h"].map(id_map)
@@ -238,37 +254,98 @@ def tab_fixtures(clubs_df):
             fix_df["Home"] = fix_df["team_h"]
             fix_df["Away"] = fix_df["team_a"]
 
-        # Scores & status
+        # Scores & Status
         fix_df["Home Score"] = fix_df.get("team_h_score", None)
         fix_df["Away Score"] = fix_df.get("team_a_score", None)
         fix_df["Status"] = fix_df.apply(lambda x: "Finished" if x["finished"] else "Upcoming", axis=1)
 
-        fix_df = fix_df[["Date", "Time", "Home", "Away", "Home Score", "Away Score", "Status"]]
+        keep_cols = ["Date", "Time", "Home", "Away", "Home Score", "Away Score", "Status"]
+        fix_df = fix_df[keep_cols]
 
-        # 4) Safely compute min/max date now
+        # Safely compute min/max date
         min_date = fix_df["Date"].min()
         max_date = fix_df["Date"].max()
 
-        # 5) Display or filter as needed
-        st.write(f"Data range: {min_date} to {max_date}")
-        # ... (rest of your code for filters, charts, etc.)
+        st.write("### Filter Options")
+
+        # Team filter
+        if not clubs_df.empty:
+            club_list = sorted(clubs_df["name"].dropna().unique().tolist())
+            filter_club = st.selectbox("Filter by Club:", ["All"] + club_list)
+        else:
+            filter_club = "All"
+
+        # Status filter
+        filter_status = st.selectbox("Filter by Status:", ["All","Upcoming","Finished"])
+
+        # Date range filter
+        col_start, col_end = st.columns(2)
+        with col_start:
+            start_date = st.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
+        with col_end:
+            end_date = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
+
+        if start_date > end_date:
+            st.warning("Start Date cannot be after End Date.")
+            return
+
+        # Apply filters
+        filtered_df = fix_df.copy()
+
+        # (a) Club
+        if filter_club != "All":
+            filtered_df = filtered_df[
+                (filtered_df["Home"] == filter_club) | (filtered_df["Away"] == filter_club)
+            ]
+        # (b) Status
+        if filter_status != "All":
+            filtered_df = filtered_df[filtered_df["Status"] == filter_status]
+        # (c) Date Range
+        filtered_df = filtered_df[
+            (filtered_df["Date"] >= start_date) & (filtered_df["Date"] <= end_date)
+        ]
+
+        if filtered_df.empty:
+            st.info("No fixtures match your filters.")
+            return
+
+        # Quick bar chart of fixture counts by date
+        st.write("### Fixtures by Date")
+        fixture_counts = filtered_df.groupby("Date").size().reset_index(name="Num Fixtures")
+        fixture_counts.sort_values("Date", inplace=True)
+
+        fig_counts = px.bar(
+            fixture_counts,
+            x="Date",
+            y="Num Fixtures",
+            text="Num Fixtures",
+            title="Number of Fixtures per Date (Filtered)",
+            color_discrete_sequence=["#EB89B5"],
+            labels={"Date": "Match Date", "Num Fixtures": "Count"}
+        )
+        fig_counts.update_layout(template="plotly_dark")
+        fig_counts.update_traces(textposition="outside")
+        st.plotly_chart(fig_counts)
+
+        st.write("### Filtered Fixtures Table")
+        st.dataframe(filtered_df, width=1200, height=500)
 
     except requests.RequestException as e:
         st.error(f"Cannot load fixtures: {e}")
 
-
-
-
-
-
+# --- 4e. Best Players ---
 def tab_best_players(players_df):
-    """Best players by position, using a 'combined_score' approach."""
+    """
+    Displays the top players by 'combined_score' for each position,
+    where the 'combined_score' is sum of relevant metrics.
+    """
     st.subheader("Best Players by Position")
 
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No players or missing 'position' info.")
         return
 
+    # Metrics for each position
     metrics_map = {
         "Goalkeeper": ["saves", "clean_sheets", "form"],
         "Defender": ["expected_goals", "expected_assists", "clean_sheets", "influence", "creativity", "threat", "form"],
@@ -283,8 +360,8 @@ def tab_best_players(players_df):
     pos_df = players_df[players_df["position"] == chosen_position].copy()
     for m in relevant_metrics:
         pos_df[m] = pd.to_numeric(pos_df[m], errors="coerce").fillna(0)
-
     pos_df["combined_score"] = pos_df[relevant_metrics].sum(axis=1)
+
     top_10 = pos_df.sort_values("combined_score", ascending=False).head(10)
 
     fig = px.bar(
@@ -301,9 +378,12 @@ def tab_best_players(players_df):
     st.write(f"**Detailed {chosen_position} Stats**")
     st.dataframe(top_10[["first_name", "last_name", "club", "position"] + relevant_metrics])
 
-
+# --- 4f. Advanced Explorer ---
 def tab_advanced(players_df):
-    """Advanced scatter plot explorer: pick any two numeric metrics to analyze."""
+    """
+    Lets the user pick any two numeric columns for a scatter plot,
+    with optional bubble sizing.
+    """
     st.subheader("Advanced Explorer (Scatter Plot)")
 
     if players_df.empty:
@@ -313,7 +393,7 @@ def tab_advanced(players_df):
     numeric_cols = [
         "total_points","goals_scored","assists","clean_sheets","influence",
         "creativity","threat","expected_goals","expected_assists","cost",
-        "popularity","hours_played","yellow_cards","red_cards"
+        "popularity","hours_played","yellow_cards","red_cards","form"
     ]
     col1, col2 = st.columns(2)
     with col1:
@@ -328,7 +408,7 @@ def tab_advanced(players_df):
         data_frame=players_df,
         x=x_metric,
         y=y_metric,
-        hover_data=["last_name","club","position","cost","popularity","hours_played"],
+        hover_data=["last_name","club","position","cost","popularity","hours_played","form","total_points"],
         color=color_by,
         template="plotly_dark"
     )
@@ -340,56 +420,63 @@ def tab_advanced(players_df):
     fig.update_layout(title=f"{x_metric} vs {y_metric}")
     st.plotly_chart(fig)
 
-
+# --- 4g. Best XI ---
 def tab_best_xi(players_df):
     """
-    Select a standard 1-4-4-2 Best XI based on highest total_points so far.
-    For a more advanced approach, you could incorporate upcoming fixtures,
-    difficulty ratings, or other metrics.
+    Enhanced Best XI feature:
+    - Formation: 1-4-3-3
+    - Score formula: total_points + 2 * form
+    - Select top players in each position group based on that scoring
     """
-    st.subheader("Best XI for Next Week (1-4-4-2)")
+    st.subheader("Best XI (1-4-3-3) by Points & Form")
 
     if players_df.empty or "position" not in players_df.columns:
-        st.warning("No data or missing position info.")
+        st.warning("No player data or missing 'position' info.")
         return
 
-    # Pick 1 GK, 4 Defenders, 4 Midfielders, 2 Forwards
-    gk = players_df[players_df["position"] == "Goalkeeper"].sort_values("total_points", ascending=False).head(1)
-    defenders = players_df[players_df["position"] == "Defender"].sort_values("total_points", ascending=False).head(4)
-    mids = players_df[players_df["position"] == "Midfielder"].sort_values("total_points", ascending=False).head(4)
-    fwds = players_df[players_df["position"] == "Forward"].sort_values("total_points", ascending=False).head(2)
+    # Create a custom 'score_for_best_xi' = total_points + 2×form
+    # This gives extra weight to current form
+    players_df["score_for_best_xi"] = players_df["total_points"] + 2.0 * players_df["form"]
 
-    best_11 = pd.concat([gk, defenders, mids, fwds])
+    # We'll pick:
+    # 1 GK, 4 Def, 3 Mid, 3 Fwd
+    # Sort each subset by 'score_for_best_xi' descending
+    gk = players_df[players_df["position"] == "Goalkeeper"]\
+        .sort_values("score_for_best_xi", ascending=False).head(1)
+    defenders = players_df[players_df["position"] == "Defender"]\
+        .sort_values("score_for_best_xi", ascending=False).head(4)
+    mids = players_df[players_df["position"] == "Midfielder"]\
+        .sort_values("score_for_best_xi", ascending=False).head(3)
+    fwds = players_df[players_df["position"] == "Forward"]\
+        .sort_values("score_for_best_xi", ascending=False).head(3)
+
+    best_11 = pd.concat([gk, defenders, mids, fwds]).copy()
 
     fig = px.bar(
         best_11,
         x="last_name",
-        y="total_points",
+        y="score_for_best_xi",
         color="club",
         color_discrete_sequence=px.colors.qualitative.Pastel2,
-        title="Recommended XI (by total_points)"
+        title="Recommended XI (Weighted by total_points + 2×form)"
     )
-    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title="Points")
+    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title="Score")
     st.plotly_chart(fig)
 
     st.write("### Detailed Best XI Table")
-    st.dataframe(
-        best_11[
-            [
-                "first_name","last_name","club","position","total_points",
-                "goals_scored","assists","clean_sheets","cost","popularity"
-            ]
-        ]
-    )
+    columns_to_show = [
+        "first_name","last_name","club","position","total_points","form",
+        "score_for_best_xi","goals_scored","assists","clean_sheets","cost"
+    ]
+    st.dataframe(best_11[columns_to_show])
 
 # ----------------------------------------------------------------------
-# 5. Run App
+# 5. Main App
 # ----------------------------------------------------------------------
-# Refresh if data is missing
 if st.session_state["players"].empty or st.session_state["clubs"].empty:
     refresh_data()
 
-st.title("Premier League Dashboard (Fresh Redesign)")
+st.title("Premier League Dashboard (Enhanced Fixtures & Best XI)")
 
 # Create tabs across the top
 tab_labels = [
@@ -398,7 +485,7 @@ tab_labels = [
     "Compare Clubs", 
     "Fixtures", 
     "Best Players", 
-    "Advanced", 
+    "Advanced Explorer", 
     "Best XI"
 ]
 tabs = st.tabs(tab_labels)
@@ -407,11 +494,11 @@ tabs = st.tabs(tab_labels)
 with tabs[0]:
     tab_overview(st.session_state["players"])
 
-# Tab 1: Search a Player
+# Tab 1: Search Player
 with tabs[1]:
     tab_search_player(st.session_state["players"])
 
-# Tab 2: Team Comparison
+# Tab 2: Compare Clubs
 with tabs[2]:
     tab_team_comparison(st.session_state["players"], st.session_state["clubs"])
 
@@ -431,7 +518,7 @@ with tabs[5]:
 with tabs[6]:
     tab_best_xi(st.session_state["players"])
 
-# A button at the bottom to reload the data
+# A refresh button at the bottom
 st.write("---")
 if st.button("Refresh All Data"):
     refresh_data()
