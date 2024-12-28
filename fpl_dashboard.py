@@ -4,13 +4,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 import numpy as np
-import datetime
 
 # ------------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Premier League Next-Gen",
+    page_title="Premier League Next-Gen (Fixtures Removed)",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -216,12 +215,11 @@ def instructions_expander():
         - **Overview**: Quick glance at top players by total points.
         - **Search Player**: Search by last name substring (and see player images).
         - **Compare Clubs**: Compare aggregated stats between two clubs.
-        - **Fixtures**: Filter upcoming/finished fixtures by team, status, or date.
         - **Best Players**: Position-based top performers by advanced metrics.
         - **Advanced Explorer**: Pick any numeric columns for a custom scatter plot.
         - **Best XI**: Our recommended lineup based on total points & form (1-4-3-3).
         
-        Make yourself at home—enjoy exploring the data!
+        Enjoy exploring the data!
         """)
 
 # --- 4a. Overview ---
@@ -340,105 +338,7 @@ def tab_team_comparison(players_df, clubs_df):
         fig.update_layout(template="plotly_dark")
         st.plotly_chart(fig)
 
-# --- 4d. Fixtures (Enhanced) ---
-def tab_fixtures(clubs_df):
-    st.markdown("## Upcoming & Recent Fixtures")
-    try:
-        # Fetch
-        resp = requests.get("https://fantasy.premierleague.com/api/fixtures/")
-        resp.raise_for_status()
-        fix_df = pd.DataFrame(resp.json())
-
-        if fix_df.empty:
-            st.info("No fixture data found.")
-            return
-
-        fix_df["kickoff_time"] = pd.to_datetime(fix_df["kickoff_time"], errors="coerce")
-        fix_df["Date"] = fix_df["kickoff_time"].dt.date
-        fix_df["Time"] = fix_df["kickoff_time"].dt.strftime("%H:%M")
-
-        # If all invalid
-        if fix_df["Date"].dropna().empty:
-            st.info("No valid fixture dates found.")
-            return
-
-        # Map clubs
-        if not clubs_df.empty and "id" in clubs_df.columns and "name" in clubs_df.columns:
-            id_map = dict(zip(clubs_df["id"], clubs_df["name"]))
-            fix_df["Home"] = fix_df["team_h"].map(id_map)
-            fix_df["Away"] = fix_df["team_a"].map(id_map)
-        else:
-            fix_df["Home"] = fix_df["team_h"]
-            fix_df["Away"] = fix_df["team_a"]
-
-        fix_df["Home Score"] = fix_df.get("team_h_score", None)
-        fix_df["Away Score"] = fix_df.get("team_a_score", None)
-        fix_df["Status"] = fix_df.apply(lambda x: "Finished" if x["finished"] else "Upcoming", axis=1)
-
-        fix_df = fix_df[["Date","Time","Home","Away","Home Score","Away Score","Status"]]
-
-        min_date = fix_df["Date"].min()
-        max_date = fix_df["Date"].max()
-
-        st.write("### Filter Options")
-        if not clubs_df.empty:
-            club_list = sorted(clubs_df["name"].dropna().unique().tolist())
-            filter_club = st.selectbox("Filter by Club:", ["All"] + club_list)
-        else:
-            filter_club = "All"
-
-        filter_status = st.selectbox("Filter by Status:", ["All","Upcoming","Finished"])
-
-        col_start, col_end = st.columns(2)
-        with col_start:
-            start_date = st.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
-        with col_end:
-            end_date = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
-
-        if start_date > end_date:
-            st.warning("Start Date cannot be after End Date.")
-            return
-
-        # Apply filters
-        filtered_df = fix_df.copy()
-        if filter_club != "All":
-            filtered_df = filtered_df[
-                (filtered_df["Home"] == filter_club) | (filtered_df["Away"] == filter_club)
-            ]
-        if filter_status != "All":
-            filtered_df = filtered_df[filtered_df["Status"] == filter_status]
-        filtered_df = filtered_df[
-            (filtered_df["Date"] >= start_date) & (filtered_df["Date"] <= end_date)
-        ]
-
-        if filtered_df.empty:
-            st.info("No fixtures match your filters.")
-            return
-
-        st.write("### Fixtures by Date")
-        fixture_counts = filtered_df.groupby("Date").size().reset_index(name="Num Fixtures")
-        fixture_counts.sort_values("Date", inplace=True)
-
-        fig_counts = px.bar(
-            fixture_counts,
-            x="Date",
-            y="Num Fixtures",
-            text="Num Fixtures",
-            title="Number of Fixtures per Date (Filtered)",
-            color_discrete_sequence=["#EB89B5"],
-            labels={"Date": "Match Date", "Num Fixtures": "Count"}
-        )
-        fig_counts.update_layout(template="plotly_dark")
-        fig_counts.update_traces(textposition="outside")
-        st.plotly_chart(fig_counts)
-
-        st.write("### Filtered Fixtures Table")
-        st.dataframe(filtered_df, width=1200, height=500)
-
-    except requests.RequestException as e:
-        st.error(f"Cannot load fixtures: {e}")
-
-# --- 4e. Best Players ---
+# --- 4d. Best Players ---
 def tab_best_players(players_df):
     st.markdown("## Best Players by Position")
     if players_df.empty or "position" not in players_df.columns:
@@ -476,7 +376,7 @@ def tab_best_players(players_df):
 
     st.dataframe(top_10[["first_name", "last_name", "club", "position"] + relevant_metrics])
 
-# --- 4f. Advanced Explorer ---
+# --- 4e. Advanced Explorer ---
 def tab_advanced(players_df):
     st.markdown("## Advanced Explorer (Scatter Plot)")
     if players_df.empty:
@@ -513,7 +413,7 @@ def tab_advanced(players_df):
     fig.update_layout(title=f"{x_metric} vs {y_metric}")
     st.plotly_chart(fig)
 
-# --- 4g. Best XI ---
+# --- 4f. Best XI ---
 def tab_best_xi(players_df):
     st.markdown("## Best XI (1-4-3-3) by Points & Form")
     if players_df.empty or "position" not in players_df.columns:
@@ -564,12 +464,11 @@ if st.session_state["players"].empty or st.session_state["clubs"].empty:
 hero_banner()
 instructions_expander()
 
-# 5c. Tabs
+# 5c. Tabs (Fixtures Tab Removed)
 tab_labels = [
     "Overview", 
     "Search Player", 
     "Compare Clubs", 
-    "Fixtures", 
     "Best Players", 
     "Advanced Explorer", 
     "Best XI"
@@ -583,12 +482,10 @@ with tabs[1]:
 with tabs[2]:
     tab_team_comparison(st.session_state["players"], st.session_state["clubs"])
 with tabs[3]:
-    tab_fixtures(st.session_state["clubs"])
-with tabs[4]:
     tab_best_players(st.session_state["players"])
-with tabs[5]:
+with tabs[4]:
     tab_advanced(st.session_state["players"])
-with tabs[6]:
+with tabs[5]:
     tab_best_xi(st.session_state["players"])
 
 # 5d. Floating Refresh Button
