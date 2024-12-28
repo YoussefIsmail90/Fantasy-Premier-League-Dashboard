@@ -5,7 +5,6 @@ import plotly.express as px
 import plotly.graph_objs as go
 import numpy as np
 import datetime
-import base64
 
 # ------------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
@@ -34,6 +33,7 @@ div[data-testid="stToolbar"] {
     position: fixed;
 }
 
+/* Hero Banner styling */
 .hero-banner {
     position: relative;
     text-align: center;
@@ -146,7 +146,10 @@ def prepare_data(data):
 
     # Merge clubs
     players_df = players_df.merge(
-        clubs_df[["id", "name"]], left_on="club_id", right_on="id", how="left"
+        clubs_df[["id", "name"]],
+        left_on="club_id",
+        right_on="id",
+        how="left"
     )
     players_df.drop(columns=["id", "club_id"], inplace=True, errors="ignore")
     players_df.rename(columns={"name": "club"}, inplace=True)
@@ -211,7 +214,7 @@ def instructions_expander():
         
         **Some Key Features**:
         - **Overview**: Quick glance at top players by total points.
-        - **Search Player**: Search by last name substring.
+        - **Search Player**: Search by last name substring (and see player images).
         - **Compare Clubs**: Compare aggregated stats between two clubs.
         - **Fixtures**: Filter upcoming/finished fixtures by team, status, or date.
         - **Best Players**: Position-based top performers by advanced metrics.
@@ -253,28 +256,51 @@ def tab_overview(players_df):
         height=500
     )
 
-# --- 4b. Search Player ---
+# --- 4b. Search Player (with Images) ---
 def tab_search_player(players_df):
-    st.markdown("## Search for a Player")
+    st.markdown("## Search for a Player (with Photo)")
     if players_df.empty:
         st.warning("No data.")
         return
 
+    # We rely on the 'photo' column from the raw FPL data (elements).
+    # Example value: '218753.jpg' -> We'll produce a URL: 
+    # "https://resources.premierleague.com/premierleague/photos/players/110x140/p218753.png"
+    # by parsing the numeric portion of the filename.
+
     name_query = st.text_input("Type part of a last name (e.g., 'Kane'):")
     if name_query:
+        # Filter players whose 'last_name' contains the query
         results = players_df[players_df["last_name"].str.contains(name_query, case=False, na=False)]
         if results.empty:
             st.info("No matching players found.")
         else:
-            st.dataframe(
-                results[
-                    [
-                        "first_name", "last_name", "club", "position", 
-                        "total_points", "goals_scored", "assists", 
-                        "clean_sheets", "cost", "popularity"
-                    ]
-                ]
-            )
+            st.write(f"**Found {len(results)} player(s).**")
+            for idx, row in results.iterrows():
+                # Construct the player photo URL if 'photo' field is valid
+                photo_str = row.get("photo", "")  # e.g. "218753.jpg"
+                # Attempt to parse the numeric portion
+                if photo_str.endswith(".jpg"):
+                    numeric_part = photo_str.replace(".jpg", "")
+                    photo_url = f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{numeric_part}.png"
+                else:
+                    # Fallback if we don't have a valid photo pattern
+                    photo_url = "https://via.placeholder.com/110x140.png?text=No+Image"
+
+                st.markdown(f"### {row['first_name']} {row['last_name']}")
+                colA, colB = st.columns([1,2])
+                with colA:
+                    st.image(photo_url, width=110)
+                with colB:
+                    st.write(f"**Club**: {row['club']}")
+                    st.write(f"**Position**: {row['position']}")
+                    st.write(f"**Total Points**: {row['total_points']}")
+                    st.write(f"**Goals Scored**: {row['goals_scored']}")
+                    st.write(f"**Assists**: {row['assists']}")
+                    st.write(f"**Clean Sheets**: {row['clean_sheets']}")
+                    st.write(f"**Cost**: £{row['cost']}m")
+                    st.write(f"**Popularity**: {row['popularity']}%")
+                st.markdown("---")
 
 # --- 4c. Compare Clubs ---
 def tab_team_comparison(players_df, clubs_df):
@@ -331,7 +357,7 @@ def tab_fixtures(clubs_df):
         fix_df["Date"] = fix_df["kickoff_time"].dt.date
         fix_df["Time"] = fix_df["kickoff_time"].dt.strftime("%H:%M")
 
-        # Check if all invalid
+        # If all invalid
         if fix_df["Date"].dropna().empty:
             st.info("No valid fixture dates found.")
             return
@@ -354,7 +380,6 @@ def tab_fixtures(clubs_df):
         min_date = fix_df["Date"].min()
         max_date = fix_df["Date"].max()
 
-        # Filters
         st.write("### Filter Options")
         if not clubs_df.empty:
             club_list = sorted(clubs_df["name"].dropna().unique().tolist())
@@ -531,7 +556,6 @@ def tab_best_xi(players_df):
 # ------------------------------------------------------------------------------
 # 5. MAIN APP
 # ------------------------------------------------------------------------------
-
 # 5a. Ensure data is loaded
 if st.session_state["players"].empty or st.session_state["clubs"].empty:
     refresh_data()
@@ -576,5 +600,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-# End of code
