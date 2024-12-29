@@ -9,7 +9,7 @@ import numpy as np
 # 1. PAGE & STYLE CONFIGURATION
 # ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Premier League Next-Gen ",
+    page_title="Premier League Next-Gen",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -57,7 +57,7 @@ div[data-testid="stToolbar"] {
     margin: 0 auto;
 }
 
-/* Example: A perfectly circular floating button in the top-right */
+/* Perfectly circular floating button in the top-right */
 .floating-btn {
     position: fixed;
     top: 25px;        /* Position from the top */
@@ -81,13 +81,6 @@ div[data-testid="stToolbar"] {
     background-color: #CC0000;
 }
 
-.floating-btn:hover {
-    background-color: #CC0000;
-}
-
-.floating-btn:hover {
-    background-color: #CC0000;
-}
 hr {
     border: 1px solid #555;
     margin: 2rem 0;
@@ -198,6 +191,11 @@ def fetch_fixtures_data():
         return pd.DataFrame()
 
 def compute_next_fixture_difficulty(clubs_df):
+    """
+    For each club, find the earliest *un-finished* fixture
+    and record its difficulty and opponent. Return a DataFrame with:
+       club, club_next_difficulty, club_next_opponent
+    """
     fix_df = fetch_fixtures_data()
     if fix_df.empty:
         return pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
@@ -237,6 +235,7 @@ def compute_next_fixture_difficulty(clubs_df):
     away_df = away_df.groupby("club", as_index=False).first()
     away_df = away_df[["club", "club_next_difficulty", "club_next_opponent"]]
 
+    # Combine home and away
     combined_df = pd.concat([home_df, away_df], ignore_index=True)
     combined_df = combined_df.sort_values("kickoff_time", axis=0, na_position="last", ignore_index=True)
 
@@ -244,7 +243,6 @@ def compute_next_fixture_difficulty(clubs_df):
     combined_df = combined_df.groupby("club", as_index=False).first()
 
     return combined_df
-
 
 def refresh_data():
     """
@@ -257,7 +255,8 @@ def refresh_data():
     if not c_df.empty:
         difficulty_df = compute_next_fixture_difficulty(c_df)
     else:
-        difficulty_df = pd.DataFrame(columns=["club", "club_next_difficulty"])
+        # Ensure 'club_next_opponent' is included even if no data
+        difficulty_df = pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
 
     st.session_state["raw_fpl_data"] = raw_data
     st.session_state["players"], st.session_state["clubs"] = p_df, c_df
@@ -288,17 +287,17 @@ def instructions_expander():
         - Each tab has a unique feature: from 'Overview' to 'Best XI'.
         
         **Data Refresh**:
-        - Click the **floating refresh button** at the bottom-right 
+        - Click the **floating refresh button** at the top-right 
           corner to re-fetch the latest FPL data & fixture difficulties.
         
         **Key Features**:
-        - **Overview**: Quick glance at top players by total points.
+        - **Overview**: Explore top players by various metrics.
         - **Search Player**: Search by last name substring (and see player images).
         - **Compare Clubs**: Compare aggregated stats between two clubs.
-        - **Compare Players**: Compare multiple players side by side (with photos).
+        - **Compare Players**: Compare multiple players side by side (with photos and a comparison chart).
         - **Best Players**: Position-based top performers by advanced metrics.
         - **Advanced Explorer**: Pick any numeric columns for a custom scatter plot.
-        - **Best XI**: Incorporates next fixture difficulty into the scoring formula 
+        - **Best XI**: Incorporates next fixture difficulty and opponent into the scoring formula 
           (1-4-3-3 formation).
         
         Enjoy exploring the data!
@@ -336,16 +335,16 @@ def tab_overview(players_df):
     top_players = players_df.sort_values(by=chosen_metric, ascending=False).head(top_n)
     
     # Display a bar chart
-    st.write(f"### Top {top_n} Players by **{chosen_metric}**")
+    st.write(f"### Top {top_n} Players by **{chosen_metric.replace('_', ' ').title()}**")
     fig = px.bar(
         top_players,
         x="last_name",
         y=chosen_metric,
         color="club",
-        title=f"Top {top_n} by {chosen_metric}",
+        title=f"Top {top_n} by {chosen_metric.replace('_', ' ').title()}",
         color_discrete_sequence=px.colors.qualitative.Pastel2
     )
-    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title=chosen_metric.capitalize())
+    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title=chosen_metric.replace('_', ' ').title())
     st.plotly_chart(fig)
     
     # Display a stats table
@@ -361,7 +360,6 @@ def tab_overview(players_df):
         ],
         height=600
     )
-
 
 # --- 4b. Search Player (with Images) ---
 def tab_search_player(players_df):
@@ -410,9 +408,9 @@ def tab_team_comparison(players_df, clubs_df):
     club_list = sorted(clubs_df["name"].dropna().unique().tolist())
     col1, col2 = st.columns(2)
     with col1:
-        c1 = st.selectbox("Club 1", club_list)
+        c1 = st.selectbox("Club 1", club_list, key="compare_club1")
     with col2:
-        c2 = st.selectbox("Club 2", club_list)
+        c2 = st.selectbox("Club 2", club_list, key="compare_club2")
 
     if c1 and c2:
         c1_data = players_df[players_df["club"] == c1]
@@ -438,7 +436,7 @@ def tab_team_comparison(players_df, clubs_df):
         fig.update_layout(template="plotly_dark")
         st.plotly_chart(fig)
 
-# --- 4d. Compare Players (Multi-select with Photos) ---
+# --- 4d. Compare Players (Multi-select with Photos and Graph) ---
 def tab_compare_players(players_df):
     """
     Allows the user to select multiple players from a dropdown,
@@ -597,14 +595,14 @@ def tab_advanced(players_df):
         scatter_config["size_max"] = 25
     
     fig = px.scatter(**scatter_config)
-    fig.update_layout(title=f"{x_metric} vs {y_metric}")
+    fig.update_layout(title=f"{x_metric.replace('_', ' ').title()} vs {y_metric.replace('_', ' ').title()}")
     st.plotly_chart(fig)
 
-# --- 4g. Best XI with Difficulty Consideration ---
+# --- 4g. Best XI with Difficulty and Opponent ---
 def tab_best_xi(players_df, difficulty_df):
     """
     1) Merge each player's club to 'club_next_difficulty' & 'club_next_opponent'
-    2) Compute: score_for_best_xi = total_points + 1.5*form + 3.0*(club_next_difficulty) [Or your own formula]
+    2) Compute: score_for_best_xi = total_points + 1.5*form + 3.0*(club_next_difficulty)
     3) Pick a 1-4-3-3 squad
     """
     st.markdown("## Best XI (1-4-3-3) with Difficulty & Opponent Info")
@@ -664,10 +662,9 @@ def tab_best_xi(players_df, difficulty_df):
     ]
     st.dataframe(best_11[columns_to_show])
 
-
-# ----------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # 5. MAIN APP
-# ----------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 if "players" not in st.session_state or st.session_state["players"].empty:
     refresh_data()
 
