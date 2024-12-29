@@ -10,7 +10,7 @@ import pytz
 from datetime import datetime
 import logging
 import re
-
+import numpy as np
 # ------------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
 # ------------------------------------------------------------------------------
