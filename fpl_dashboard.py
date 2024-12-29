@@ -184,6 +184,12 @@ def prepare_data(data):
         id_to_position = dict(zip(positions_df["id"], positions_df["singular_name"]))
         players_df["position"] = players_df["element_type"].map(id_to_position)
 
+    # Construct photo URLs
+    players_df["photo_url"] = players_df["photo"].apply(
+        lambda x: f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{x}.png" 
+        if pd.notnull(x) else "https://via.placeholder.com/110x140.png?text=No+Image"
+    )
+
     return players_df, clubs_df
 
 @st.cache_data(ttl=60 * 60)
@@ -420,12 +426,7 @@ def tab_search_player(players_df):
         else:
             st.write(f"**Found {len(results)} player(s).**")
             for idx, row in results.iterrows():
-                photo_str = row.get("photo", "")
-                if photo_str.endswith(".jpg"):
-                    numeric_part = photo_str.replace(".jpg", "")
-                    photo_url = f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{numeric_part}.png"
-                else:
-                    photo_url = "https://via.placeholder.com/110x140.png?text=No+Image"
+                photo_url = row.get("photo_url", "https://via.placeholder.com/110x140.png?text=No+Image")
 
                 st.markdown(f"### {row['first_name']} {row['last_name']}")
                 colA, colB = st.columns([1,2])
@@ -521,12 +522,7 @@ def tab_compare_players(players_df):
         col_index = idx % max_cols
         with cols[col_index]:
             # Construct the player photo URL
-            photo_str = row.get("photo", "")
-            if photo_str.endswith(".jpg"):
-                numeric_part = photo_str.replace(".jpg", "")
-                photo_url = f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{numeric_part}.png"
-            else:
-                photo_url = "https://via.placeholder.com/110x140.png?text=No+Image"
+            photo_url = row.get("photo_url", "https://via.placeholder.com/110x140.png?text=No+Image")
 
             st.image(photo_url, width=110)
             st.markdown(f"### {row['first_name']} {row['last_name']}")
@@ -690,21 +686,121 @@ def tab_best_xi(players_df, difficulty_df):
     # Combine into Best XI
     best_11 = pd.concat([gk, defenders, mids, fwds], ignore_index=True)
 
-    # Display Best XI before plotting
-    st.markdown("### **Selected Best XI Players**")
-    st.dataframe(best_11[["first_name", "last_name", "club", "club_next_opponent", "score_for_best_xi"]])
+    # Assign coordinates based on formation (1-4-3-3)
+    def assign_coordinates(best_11_df):
+        positions = best_11_df["position"].tolist()
+        coordinates = []
+        pos_counters = {"Goalkeeper": 0, "Defender": 0, "Midfielder": 0, "Forward": 0}
 
-    # Display Best XI Bar Chart
-    fig = px.bar(
-        best_11,
-        x="last_name",
-        y="score_for_best_xi",
-        color="club",
-        color_discrete_sequence=px.colors.qualitative.Pastel2,
-        title="Recommended XI (Weighted by Points, Form, & Next Fixture Difficulty)"
+        for pos in positions:
+            if pos == "Goalkeeper":
+                x, y = 10, 50
+            elif pos == "Defender":
+                count = pos_counters["Defender"]
+                if count == 0:
+                    y = 20
+                elif count == 1:
+                    y = 35
+                elif count == 2:
+                    y = 65
+                elif count == 3:
+                    y = 80
+                x = 30
+            elif pos == "Midfielder":
+                count = pos_counters["Midfielder"]
+                if count == 0:
+                    y = 25
+                elif count == 1:
+                    y = 50
+                elif count == 2:
+                    y = 75
+                x = 50
+            elif pos == "Forward":
+                count = pos_counters["Forward"]
+                if count == 0:
+                    y = 30
+                elif count == 1:
+                    y = 50
+                elif count == 2:
+                    y = 70
+                x = 70
+            coordinates.append((x, y))
+            pos_counters[pos] += 1
+
+        best_11_df = best_11_df.copy()
+        best_11_df["x"] = [coord[0] for coord in coordinates]
+        best_11_df["y"] = [coord[1] for coord in coordinates]
+        return best_11_df
+
+    best_11 = assign_coordinates(best_11)
+
+    # Create Plotly figure with football pitch
+    fig = go.Figure()
+
+    # Add pitch lines
+    # Outline
+    fig.add_shape(type="rect", x0=0, y0=0, x1=100, y1=100, line=dict(color="white"))
+
+    # Halfway line
+    fig.add_shape(type="line", x0=50, y0=0, x1=50, y1=100, line=dict(color="white"))
+
+    # Center circle
+    fig.add_shape(type="circle", x0=45, y0=45, x1=55, y1=55, line=dict(color="white"))
+
+    # Penalty areas
+    # Left penalty area
+    fig.add_shape(type="rect", x0=0, y0=30, x1=16.5, y1=70, line=dict(color="white"))
+    # Right penalty area
+    fig.add_shape(type="rect", x0=83.5, y0=30, x1=100, y1=70, line=dict(color="white"))
+
+    # Add player images
+    for idx, row in best_11.iterrows():
+        fig.add_layout_image(
+            dict(
+                source=row['photo_url'],
+                x=row['x'] - 3,  # Adjusting to center the image
+                y=row['y'] - 5,  # Adjusting to center the image
+                xref="x",
+                yref="y",
+                sizex=6,
+                sizey=10,
+                sizing="stretch",
+                opacity=1,
+                layer="above"
+            )
+        )
+        # Add player name below the image
+        fig.add_annotation(
+            dict(
+                x=row['x'],
+                y=row['y'] - 7,
+                text=f"{row['first_name']} {row['last_name']}",
+                showarrow=False,
+                font=dict(color="white", size=10),
+                xanchor="center",
+                yanchor="top",
+                opacity=0.8
+            )
+        )
+
+    # Set axes properties
+    fig.update_xaxes(showgrid=False, range=[0,100], zeroline=False, showticklabels=False)
+    fig.update_yaxes(showgrid=False, range=[0,100], zeroline=False, showticklabels=False)
+
+    # Update layout
+    fig.update_layout(
+        width=800,
+        height=600,
+        plot_bgcolor="#2b2b2b",
+        paper_bgcolor="#2b2b2b",
+        margin=dict(l=0, r=0, t=50, b=0)
     )
-    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title="Score")
-    st.plotly_chart(fig)
+
+    # Optional: Add a title or other annotations
+    fig.update_layout(title_text="Best XI Squad", title_x=0.5, title_font=dict(color="white", size=24))
+
+    # Display the squad on the pitch
+    st.plotly_chart(fig, use_container_width=True)
 
     # Display Detailed Best XI Table Including Opponent
     st.write("### Detailed Best XI Table")
