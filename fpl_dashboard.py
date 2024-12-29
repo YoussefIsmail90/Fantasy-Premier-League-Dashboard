@@ -1,9 +1,10 @@
 import streamlit as st
 import requests
 import pandas as pd
-import plotly.graph_objs as go
-import plotly.express as px
-import numpy as np
+from mplsoccer import Pitch
+import matplotlib.pyplot as plt
+from PIL import Image
+from io import BytesIO
 import pytz
 from datetime import datetime
 import logging
@@ -736,87 +737,52 @@ def tab_best_xi(players_df, difficulty_df):
 
     best_11 = assign_coordinates(best_11)
 
+    # Fetch and cache player images
+    @st.cache_data(show_spinner=False)
+    def get_player_image(url):
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            img = Image.open(BytesIO(response.content))
+            return img
+        except:
+            # Return a placeholder image in case of error
+            return Image.open(BytesIO(requests.get("https://via.placeholder.com/110x140.png?text=No+Image").content))
+
     # Create Plotly figure with football pitch
-    fig = go.Figure()
+    # Using mplsoccer for better pitch drawing and image placement
+    pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
+    fig, ax = pitch.draw(figsize=(10, 6))
 
-    # Add pitch lines
-    # Outline
-    fig.add_shape(type="rect", x0=0, y0=0, x1=100, y1=100, line=dict(color="white"))
-
-    # Halfway line
-    fig.add_shape(type="line", x0=50, y0=0, x1=50, y1=100, line=dict(color="white"))
-
-    # Center circle
-    fig.add_shape(type="circle", x0=45, y0=45, x1=55, y1=55, line=dict(color="white"))
-
-    # Penalty areas
-    # Left penalty area
-    fig.add_shape(type="rect", x0=0, y0=30, x1=16.5, y1=70, line=dict(color="white"))
-    # Right penalty area
-    fig.add_shape(type="rect", x0=83.5, y0=30, x1=100, y1=70, line=dict(color="white"))
-
-    # Add player images and annotations
+    # Plot player images
     for idx, row in best_11.iterrows():
-        # Add player image
-        fig.add_layout_image(
-            dict(
-                source=row['photo_url'],
-                x=row['x'] - 3,  # Adjusting to center the image
-                y=row['y'] - 5,  # Adjusting to center the image
-                xref="x",
-                yref="y",
-                sizex=6,
-                sizey=10,
-                sizing="stretch",
-                opacity=1,
-                layer="above"
-            )
-        )
+        img = get_player_image(row['photo_url'])
+        # Resize image to fit the pitch
+        img = img.resize((60, 80))  # Adjust size as needed
+
+        # Convert PIL image to NumPy array
+        img_np = np.array(img)
+
+        # Calculate position: convert x and y from percentage to pitch coordinates
+        # mplsoccer uses a range of 0 to 120 for x and 0 to 80 for y by default
+        x_pitch, y_pitch = pitch.px2pitch(row['x'], row['y'])
+
+        # Add image to the pitch
+        imagebox = OffsetImage(img_np, zoom=1)
+        ab = AnnotationBbox(imagebox, (x_pitch, y_pitch),
+                            frameon=False, box_alignment=(0.5, 0.5))
+        ax.add_artist(ab)
+
         # Add player name below the image
-        fig.add_annotation(
-            dict(
-                x=row['x'],
-                y=row['y'] - 7,
-                text=f"{row['first_name']} {row['last_name']}",
-                showarrow=False,
-                font=dict(color="white", size=10),
-                xanchor="center",
-                yanchor="top",
-                opacity=0.8
-            )
-        )
-        # Add player stats as hover text
-        fig.add_annotation(
-            dict(
-                x=row['x'],
-                y=row['y'] + 5,
-                text=f"Pts: {row['total_points']}<br>Form: {row['form']:.1f}<br>Difficulty: {row['club_next_difficulty']}",
-                showarrow=False,
-                font=dict(color="white", size=9),
-                xanchor="center",
-                yanchor="bottom",
-                opacity=0.7
-            )
-        )
+        ax.text(x_pitch, y_pitch - 5, f"{row['first_name']} {row['last_name']}",
+                ha='center', va='top', color='white', fontsize=8, weight='bold')
 
-    # Set axes properties
-    fig.update_xaxes(showgrid=False, range=[0,100], zeroline=False, showticklabels=False)
-    fig.update_yaxes(showgrid=False, range=[0,100], zeroline=False, showticklabels=False)
+        # Add hover annotation with player stats
+        ax.text(x_pitch, y_pitch + 5, f"Pts: {row['total_points']}\nForm: {row['form']:.1f}\nDifficulty: {row['club_next_difficulty']}",
+                ha='center', va='bottom', color='white', fontsize=6, alpha=0.7)
 
-    # Update layout
-    fig.update_layout(
-        width=800,
-        height=600,
-        plot_bgcolor="#2b2b2b",
-        paper_bgcolor="#2b2b2b",
-        margin=dict(l=0, r=0, t=50, b=0)
-    )
-
-    # Add a title
-    fig.update_layout(title_text="Best XI Squad", title_x=0.5, title_font=dict(color="white", size=24))
-
-    # Display the squad on the pitch
-    st.plotly_chart(fig, use_container_width=True)
+    # Display the pitch with players
+    st.pyplot(fig)
 
     # Display Detailed Best XI Table Including Opponent
     st.write("### Detailed Best XI Table")
