@@ -202,13 +202,6 @@ def fetch_fixtures_data():
         logging.error(f"Error fetching fixture data: {e}")
         return pd.DataFrame()
 
-def display_raw_fixtures(fix_df):
-    st.markdown("### **Raw Upcoming Fixtures Data**")
-    if fix_df.empty:
-        st.warning("No upcoming fixtures found.")
-    else:
-        st.dataframe(fix_df.head(10))  # Display first 10 for brevity
-
 def compute_next_fixture_difficulty(clubs_df):
     """
     For each club, find the earliest *un-finished* fixture with kickoff_time after now
@@ -220,9 +213,6 @@ def compute_next_fixture_difficulty(clubs_df):
         st.warning("No fixture data available.")
         return pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
 
-    # Display raw fixtures data for debugging
-    display_raw_fixtures(fix_df)
-
     # Convert kickoff_time to datetime and localize to UTC if naive
     fix_df["kickoff_time"] = pd.to_datetime(fix_df["kickoff_time"], errors="coerce")
     if fix_df["kickoff_time"].dt.tz is None:
@@ -232,7 +222,6 @@ def compute_next_fixture_difficulty(clubs_df):
 
     # Get current time in UTC
     now_utc = datetime.now(pytz.UTC)
-    st.markdown(f"**Current UTC Time**: {now_utc}")
 
     # Filter for fixtures that are not finished and have kickoff_time after now
     fix_df = fix_df[(fix_df["finished"] == False) & (fix_df["kickoff_time"] > now_utc)].copy()
@@ -296,10 +285,6 @@ def compute_next_fixture_difficulty(clubs_df):
         st.error("Duplicate entries found for some clubs in combined_df.")
     else:
         st.success("Each club has a single next fixture.")
-
-    # Display combined_df for verification
-    st.markdown("### **Next Fixture Difficulty and Opponents**")
-    st.dataframe(combined_df)
 
     return combined_df
 
@@ -683,10 +668,6 @@ def tab_best_xi(players_df, difficulty_df):
         players_df["club_next_difficulty"] = players_df["club_next_difficulty"].fillna(3)
         players_df["club_next_opponent"] = players_df["club_next_opponent"].fillna("Unknown")
 
-    # **DEBUGGING**: Display players_df after merging
-    # st.markdown("### **Players Data with Next Fixture Info**")
-    # st.dataframe(players_df[["first_name", "last_name", "club", "club_next_opponent", "club_next_difficulty"]].head(10))
-
     # Weighted formula for Best XI scoring
     # Assuming lower difficulty means easier fixture, hence higher score
     players_df["score_for_best_xi"] = (
@@ -709,7 +690,7 @@ def tab_best_xi(players_df, difficulty_df):
     # Combine into Best XI
     best_11 = pd.concat([gk, defenders, mids, fwds], ignore_index=True)
 
-    # **DEBUGGING**: Display Best XI before plotting
+    # Display Best XI before plotting
     st.markdown("### **Selected Best XI Players**")
     st.dataframe(best_11[["first_name", "last_name", "club", "club_next_opponent", "score_for_best_xi"]])
 
