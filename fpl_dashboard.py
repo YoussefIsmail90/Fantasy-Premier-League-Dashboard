@@ -187,7 +187,7 @@ def prepare_data(data):
     # Construct photo URLs
     players_df["photo_url"] = players_df["photo"].apply(
         lambda x: f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{x}.png" 
-        if pd.notnull(x) else "https://via.placeholder.com/110x140.png?text=No+Image"
+        if pd.notnull(x) and x.isdigit() else "https://via.placeholder.com/110x140.png?text=No+Image"
     )
 
     return players_df, clubs_df
@@ -240,13 +240,6 @@ def compute_next_fixture_difficulty(clubs_df):
     fix_df["HomeName"] = fix_df["team_h"].map(id_map)
     fix_df["AwayName"] = fix_df["team_a"].map(id_map)
 
-    # Check for any unmapped teams
-    unmapped_teams = set(fix_df["team_h"].unique()).union(set(fix_df["team_a"].unique())) - set(id_map.keys())
-    if unmapped_teams:
-        st.warning(f"Unmapped team IDs found: {unmapped_teams}")
-    else:
-        st.success("All team IDs successfully mapped to names.")
-
     # Rename difficulty columns for clarity
     fix_df.rename(columns={
         "team_h_difficulty": "HomeDiff",
@@ -285,12 +278,6 @@ def compute_next_fixture_difficulty(clubs_df):
 
     # Select required columns
     combined_df = combined_df[["club", "club_next_difficulty", "club_next_opponent"]]
-
-    # Check for duplicate entries
-    if combined_df["club"].duplicated().any():
-        st.error("Duplicate entries found for some clubs in combined_df.")
-    else:
-        st.success("Each club has a single next fixture.")
 
     return combined_df
 
@@ -694,7 +681,7 @@ def tab_best_xi(players_df, difficulty_df):
 
         for pos in positions:
             if pos == "Goalkeeper":
-                x, y = 10, 50
+                x, y = 5, 50
             elif pos == "Defender":
                 count = pos_counters["Defender"]
                 if count == 0:
@@ -709,20 +696,20 @@ def tab_best_xi(players_df, difficulty_df):
             elif pos == "Midfielder":
                 count = pos_counters["Midfielder"]
                 if count == 0:
-                    y = 25
-                elif count == 1:
-                    y = 50
-                elif count == 2:
-                    y = 75
-                x = 50
-            elif pos == "Forward":
-                count = pos_counters["Forward"]
-                if count == 0:
                     y = 30
                 elif count == 1:
                     y = 50
                 elif count == 2:
                     y = 70
+                x = 50
+            elif pos == "Forward":
+                count = pos_counters["Forward"]
+                if count == 0:
+                    y = 35
+                elif count == 1:
+                    y = 50
+                elif count == 2:
+                    y = 65
                 x = 70
             coordinates.append((x, y))
             pos_counters[pos] += 1
@@ -753,7 +740,7 @@ def tab_best_xi(players_df, difficulty_df):
     # Right penalty area
     fig.add_shape(type="rect", x0=83.5, y0=30, x1=100, y1=70, line=dict(color="white"))
 
-    # Add player images
+    # Add player images and annotations
     for idx, row in best_11.iterrows():
         fig.add_layout_image(
             dict(
@@ -780,6 +767,19 @@ def tab_best_xi(players_df, difficulty_df):
                 xanchor="center",
                 yanchor="top",
                 opacity=0.8
+            )
+        )
+        # Optional: Add player stats on hover
+        fig.add_annotation(
+            dict(
+                x=row['x'],
+                y=row['y'] + 5,
+                text=f"Pts: {row['total_points']}<br>Form: {row['form']:.1f}<br>Difficulty: {row['club_next_difficulty']}",
+                showarrow=False,
+                font=dict(color="white", size=9),
+                xanchor="center",
+                yanchor="bottom",
+                opacity=0.7
             )
         )
 
