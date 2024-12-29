@@ -6,6 +6,7 @@ import plotly.graph_objs as go
 import numpy as np
 import pytz
 from datetime import datetime
+import logging
 
 # ------------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
@@ -14,6 +15,13 @@ st.set_page_config(
     page_title="Premier League Next-Gen",
     layout="wide",
     initial_sidebar_state="collapsed"
+)
+
+# Configure logging
+logging.basicConfig(
+    filename='fpl_dashboard.log',
+    level=logging.INFO,
+    format='%(asctime)s:%(levelname)s:%(message)s'
 )
 
 # Custom CSS for a "website" feel
@@ -118,6 +126,7 @@ def fetch_fpl_data():
         return resp.json()
     except requests.RequestException as e:
         st.error(f"Error fetching FPL data: {e}")
+        logging.error(f"Error fetching FPL data: {e}")
         return {}
 
 @st.cache_data(ttl=60 * 60)
@@ -190,6 +199,7 @@ def fetch_fixtures_data():
         return pd.DataFrame(resp.json())
     except requests.RequestException as e:
         st.error(f"Error fetching fixture data: {e}")
+        logging.error(f"Error fetching fixture data: {e}")
         return pd.DataFrame()
 
 def display_raw_fixtures(fix_df):
@@ -248,30 +258,38 @@ def compute_next_fixture_difficulty(clubs_df):
         "team_a_difficulty": "AwayDiff"
     }, inplace=True)
 
-    # Sort fixtures by kickoff_time to prioritize earliest fixtures
-    fix_df.sort_values("kickoff_time", inplace=True)
+    # Create two entries per fixture: one for home, one for away
+    home_entries = fix_df[["HomeName", "AwayName", "HomeDiff", "kickoff_time"]].copy()
+    home_entries.rename(columns={
+        "HomeName": "club",
+        "AwayName": "opponent",
+        "HomeDiff": "difficulty"
+    }, inplace=True)
 
-    # Home perspective
-    home_df = fix_df[["HomeName", "AwayName", "HomeDiff"]].dropna(subset=["HomeName"])
-    home_df["club"] = home_df["HomeName"]
-    home_df["club_next_difficulty"] = home_df["HomeDiff"]
-    home_df["club_next_opponent"] = home_df["AwayName"]  # Opponent for home club is the away team
-    home_df = home_df.groupby("club", as_index=False).first()
-    home_df = home_df[["club", "club_next_difficulty", "club_next_opponent"]]
+    away_entries = fix_df[["AwayName", "HomeName", "AwayDiff", "kickoff_time"]].copy()
+    away_entries.rename(columns={
+        "AwayName": "club",
+        "HomeName": "opponent",
+        "AwayDiff": "difficulty"
+    }, inplace=True)
 
-    # Away perspective
-    away_df = fix_df[["AwayName", "HomeName", "AwayDiff"]].dropna(subset=["AwayName"])
-    away_df["club"] = away_df["AwayName"]
-    away_df["club_next_difficulty"] = away_df["AwayDiff"]
-    away_df["club_next_opponent"] = away_df["HomeName"]  # Opponent for away club is the home team
-    away_df = away_df.groupby("club", as_index=False).first()
-    away_df = away_df[["club", "club_next_difficulty", "club_next_opponent"]]
+    # Combine home and away fixtures
+    combined_df = pd.concat([home_entries, away_entries], ignore_index=True)
 
-    # Combine home and away DataFrames
-    combined_df = pd.concat([home_df, away_df], ignore_index=True)
+    # Sort by club and kickoff_time to prioritize earliest fixtures
+    combined_df.sort_values(by=["club", "kickoff_time"], inplace=True)
 
-    # Group by club to ensure each club appears only once with their earliest fixture
-    combined_df = combined_df.groupby("club", as_index=False).first()
+    # Drop duplicates, keeping the first (earliest) fixture per club
+    combined_df = combined_df.drop_duplicates(subset=["club"], keep='first')
+
+    # Rename columns as required
+    combined_df.rename(columns={
+        "difficulty": "club_next_difficulty",
+        "opponent": "club_next_opponent"
+    }, inplace=True)
+
+    # Select required columns
+    combined_df = combined_df[["club", "club_next_difficulty", "club_next_opponent"]]
 
     # Check for duplicate entries
     if combined_df["club"].duplicated().any():
