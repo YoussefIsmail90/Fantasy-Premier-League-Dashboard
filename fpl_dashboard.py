@@ -1,12 +1,13 @@
 import streamlit as st
 import requests
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objs as go
+import plotly.express as px
 import numpy as np
 import pytz
 from datetime import datetime
 import logging
+import re
 
 # ------------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
@@ -186,11 +187,25 @@ def prepare_data(data):
 
     # Construct photo URLs
     players_df["photo_url"] = players_df["photo"].apply(
-        lambda x: f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{x}.png" 
-        if pd.notnull(x) and x.isdigit() else "https://via.placeholder.com/110x140.png?text=No+Image"
+        lambda x: construct_photo_url(x)
     )
 
     return players_df, clubs_df
+
+def construct_photo_url(photo_str):
+    """
+    Constructs the full URL for a player's photo.
+    If the photo_str is invalid, returns a placeholder image URL.
+    """
+    if pd.isnull(photo_str):
+        return "https://via.placeholder.com/110x140.png?text=No+Image"
+    
+    match = re.match(r'(\d+)\.jpg', photo_str)
+    if match:
+        player_id = match.group(1)
+        return f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{player_id}.png"
+    else:
+        return "https://via.placeholder.com/110x140.png?text=No+Image"
 
 @st.cache_data(ttl=60 * 60)
 def fetch_fixtures_data():
@@ -742,6 +757,7 @@ def tab_best_xi(players_df, difficulty_df):
 
     # Add player images and annotations
     for idx, row in best_11.iterrows():
+        # Add player image
         fig.add_layout_image(
             dict(
                 source=row['photo_url'],
@@ -769,7 +785,7 @@ def tab_best_xi(players_df, difficulty_df):
                 opacity=0.8
             )
         )
-        # Optional: Add player stats on hover
+        # Add player stats as hover text
         fig.add_annotation(
             dict(
                 x=row['x'],
@@ -796,7 +812,7 @@ def tab_best_xi(players_df, difficulty_df):
         margin=dict(l=0, r=0, t=50, b=0)
     )
 
-    # Optional: Add a title or other annotations
+    # Add a title
     fig.update_layout(title_text="Best XI Squad", title_x=0.5, title_font=dict(color="white", size=24))
 
     # Display the squad on the pitch
