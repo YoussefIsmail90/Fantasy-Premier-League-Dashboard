@@ -773,7 +773,7 @@ def tab_best_xi(players_df, difficulty_df):
         y_pitch = (row['y'] / 100) * 80
 
         # Add image to the pitch
-        imagebox = OffsetImage(img_np, zoom=1)
+        imagebox = OffsetImage(img_np, zoom=0.5)
         ab = AnnotationBbox(imagebox, (x_pitch, y_pitch),
                             frameon=False, box_alignment=(0.5, 0.5))
         ax.add_artist(ab)
