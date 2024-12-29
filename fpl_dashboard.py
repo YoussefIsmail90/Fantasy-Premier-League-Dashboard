@@ -4,6 +4,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 import numpy as np
+import pytz
+from datetime import datetime
 
 # ------------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
@@ -190,8 +192,12 @@ def fetch_fixtures_data():
         st.error(f"Error fetching fixture data: {e}")
         return pd.DataFrame()
 
-import pytz
-from datetime import datetime
+def display_raw_fixtures(fix_df):
+    st.markdown("### **Raw Upcoming Fixtures Data**")
+    if fix_df.empty:
+        st.warning("No upcoming fixtures found.")
+    else:
+        st.dataframe(fix_df.head(10))  # Display first 10 for brevity
 
 def compute_next_fixture_difficulty(clubs_df):
     """
@@ -201,17 +207,27 @@ def compute_next_fixture_difficulty(clubs_df):
     """
     fix_df = fetch_fixtures_data()
     if fix_df.empty:
+        st.warning("No fixture data available.")
         return pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
 
-    # Convert kickoff_time to datetime with timezone awareness
-    fix_df["kickoff_time"] = pd.to_datetime(fix_df["kickoff_time"], errors="coerce").dt.tz_convert('UTC')
-    
+    # Display raw fixtures data for debugging
+    display_raw_fixtures(fix_df)
+
+    # Convert kickoff_time to datetime and localize to UTC if naive
+    fix_df["kickoff_time"] = pd.to_datetime(fix_df["kickoff_time"], errors="coerce")
+    if fix_df["kickoff_time"].dt.tz is None:
+        fix_df["kickoff_time"] = fix_df["kickoff_time"].dt.tz_localize('UTC')
+    else:
+        fix_df["kickoff_time"] = fix_df["kickoff_time"].dt.tz_convert('UTC')
+
     # Get current time in UTC
     now_utc = datetime.now(pytz.UTC)
+    st.markdown(f"**Current UTC Time**: {now_utc}")
 
     # Filter for fixtures that are not finished and have kickoff_time after now
     fix_df = fix_df[(fix_df["finished"] == False) & (fix_df["kickoff_time"] > now_utc)].copy()
     if fix_df.empty:
+        st.warning("No upcoming fixtures after the current time.")
         return pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
 
     # Map club IDs to names
@@ -220,10 +236,11 @@ def compute_next_fixture_difficulty(clubs_df):
     fix_df["AwayName"] = fix_df["team_a"].map(id_map)
 
     # Check for any unmapped teams
-    unmapped_teams = fix_df["team_h"].append(fix_df["team_a"]).unique()
-    unmapped_names = [team_id for team_id in unmapped_teams if team_id not in id_map]
-    if unmapped_names:
-        st.warning(f"Unmapped team IDs found: {unmapped_names}")
+    unmapped_teams = set(fix_df["team_h"].unique()).union(set(fix_df["team_a"].unique())) - set(id_map.keys())
+    if unmapped_teams:
+        st.warning(f"Unmapped team IDs found: {unmapped_teams}")
+    else:
+        st.success("All team IDs successfully mapped to names.")
 
     # Rename difficulty columns for clarity
     fix_df.rename(columns={
@@ -256,12 +273,17 @@ def compute_next_fixture_difficulty(clubs_df):
     # Group by club to ensure each club appears only once with their earliest fixture
     combined_df = combined_df.groupby("club", as_index=False).first()
 
-    # **DEBUGGING**: Display combined_df for verification
+    # Check for duplicate entries
+    if combined_df["club"].duplicated().any():
+        st.error("Duplicate entries found for some clubs in combined_df.")
+    else:
+        st.success("Each club has a single next fixture.")
+
+    # Display combined_df for verification
     st.markdown("### **Next Fixture Difficulty and Opponents**")
     st.dataframe(combined_df)
 
     return combined_df
-
 
 def refresh_data():
     """
@@ -621,7 +643,7 @@ def tab_advanced(players_df):
 def tab_best_xi(players_df, difficulty_df):
     """
     1) Merge each player's club to 'club_next_difficulty' & 'club_next_opponent'
-    2) Compute: score_for_best_xi = total_points + 1.5*form + 3.0*(club_next_difficulty)
+    2) Compute: score_for_best_xi = total_points + 1.5*form + 3.0/(club_next_difficulty)
     3) Pick a 1-4-3-3 squad
     """
     st.markdown("## Best XI (1-4-3-3) with Difficulty & Opponent Info")
@@ -643,11 +665,16 @@ def tab_best_xi(players_df, difficulty_df):
         players_df["club_next_difficulty"] = players_df["club_next_difficulty"].fillna(3)
         players_df["club_next_opponent"] = players_df["club_next_opponent"].fillna("Unknown")
 
+    # **DEBUGGING**: Display players_df after merging
+    st.markdown("### **Players Data with Next Fixture Info**")
+    st.dataframe(players_df[["first_name", "last_name", "club", "club_next_opponent", "club_next_difficulty"]].head(10))
+
     # Weighted formula for Best XI scoring
+    # Assuming lower difficulty means easier fixture, hence higher score
     players_df["score_for_best_xi"] = (
         players_df["total_points"] 
         + 1.5 * players_df["form"] 
-        + 3.0 * ( (5-players_df["club_next_difficulty"]) )
+        + 3.0 / players_df["club_next_difficulty"]  # Inverted difficulty
     )
 
     # Function to pick top N players per position
@@ -663,6 +690,10 @@ def tab_best_xi(players_df, difficulty_df):
 
     # Combine into Best XI
     best_11 = pd.concat([gk, defenders, mids, fwds], ignore_index=True)
+
+    # **DEBUGGING**: Display Best XI before plotting
+    st.markdown("### **Selected Best XI Players**")
+    st.dataframe(best_11[["first_name", "last_name", "club", "club_next_opponent", "score_for_best_xi"]])
 
     # Display Best XI Bar Chart
     fig = px.bar(
@@ -689,7 +720,8 @@ def tab_best_xi(players_df, difficulty_df):
 # 5. MAIN APP
 # ------------------------------------------------------------------------------
 if "players" not in st.session_state or st.session_state["players"].empty:
-    refresh_data()
+    with st.spinner("Fetching and processing data..."):
+        refresh_data()
 
 # Hero Banner & Intro
 hero_banner()
