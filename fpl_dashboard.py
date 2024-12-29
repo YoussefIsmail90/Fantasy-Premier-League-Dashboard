@@ -179,7 +179,7 @@ def prepare_data(data):
 def fetch_fixtures_data():
     """
     Minimal fixture fetch from FPL's '/fixtures/' endpoint to compute
-    each club's next difficulty for the Best XI.
+    each club's next difficulty and opponent for the Best XI.
     """
     try:
         url = "https://fantasy.premierleague.com/api/fixtures/"
@@ -222,7 +222,6 @@ def compute_next_fixture_difficulty(clubs_df):
     home_df["club"] = home_df["HomeName"]
     home_df["club_next_difficulty"] = home_df["HomeDiff"]
     home_df["club_next_opponent"] = home_df["AwayName"]  # Opponent for home club is the away team
-    home_df.sort_values("kickoff_time", inplace=True)
     home_df = home_df.groupby("club", as_index=False).first()
     home_df = home_df[["club", "club_next_difficulty", "club_next_opponent"]]
 
@@ -231,15 +230,13 @@ def compute_next_fixture_difficulty(clubs_df):
     away_df["club"] = away_df["AwayName"]
     away_df["club_next_difficulty"] = away_df["AwayDiff"]
     away_df["club_next_opponent"] = away_df["HomeName"]  # Opponent for away club is the home team
-    away_df.sort_values("kickoff_time", inplace=True)
     away_df = away_df.groupby("club", as_index=False).first()
     away_df = away_df[["club", "club_next_difficulty", "club_next_opponent"]]
 
-    # Combine home and away
+    # Combine home and away DataFrames
     combined_df = pd.concat([home_df, away_df], ignore_index=True)
-    combined_df = combined_df.sort_values("kickoff_time", axis=0, na_position="last", ignore_index=True)
 
-    # If a club has both an upcoming home & away fixture, group again and pick earliest.
+    # Group by club to ensure each club appears only once with their earliest fixture
     combined_df = combined_df.groupby("club", as_index=False).first()
 
     return combined_df
@@ -610,12 +607,12 @@ def tab_best_xi(players_df, difficulty_df):
         st.warning("No player data or missing 'position' info.")
         return
 
-    # If difficulty_df is empty, fallback to default
+    # If difficulty_df is empty, fallback to default values
     if difficulty_df.empty:
         players_df["club_next_difficulty"] = 3
         players_df["club_next_opponent"] = "Unknown"
     else:
-        # Merge on 'club'
+        # Merge on 'club' to include difficulty and opponent info
         players_df = players_df.merge(
             difficulty_df,
             on="club",
@@ -624,25 +621,28 @@ def tab_best_xi(players_df, difficulty_df):
         players_df["club_next_difficulty"] = players_df["club_next_difficulty"].fillna(3)
         players_df["club_next_opponent"] = players_df["club_next_opponent"].fillna("Unknown")
 
-    # Weighted formula
+    # Weighted formula for Best XI scoring
     players_df["score_for_best_xi"] = (
         players_df["total_points"] 
         + 1.5 * players_df["form"] 
         + 3.0 * players_df["club_next_difficulty"]
     )
 
-    # 1 GK, 4 Def, 3 Mid, 3 Fwd
+    # Function to pick top N players per position
     def pick_top_n(position, n):
         subset = players_df[players_df["position"] == position]
         return subset.sort_values("score_for_best_xi", ascending=False).head(n)
 
+    # Select players for each position
     gk = pick_top_n("Goalkeeper", 1)
     defenders = pick_top_n("Defender", 4)
     mids = pick_top_n("Midfielder", 3)
     fwds = pick_top_n("Forward", 3)
 
+    # Combine into Best XI
     best_11 = pd.concat([gk, defenders, mids, fwds], ignore_index=True)
 
+    # Display Best XI Bar Chart
     fig = px.bar(
         best_11,
         x="last_name",
@@ -654,11 +654,12 @@ def tab_best_xi(players_df, difficulty_df):
     fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title="Score")
     st.plotly_chart(fig)
 
+    # Display Detailed Best XI Table Including Opponent
     st.write("### Detailed Best XI Table")
     columns_to_show = [
-        "first_name","last_name","club","position","total_points","form",
-        "club_next_difficulty","club_next_opponent","score_for_best_xi",
-        "goals_scored","assists","clean_sheets","cost"
+        "first_name", "last_name", "club", "position", "total_points", "form",
+        "club_next_difficulty", "club_next_opponent", "score_for_best_xi",
+        "goals_scored", "assists", "clean_sheets", "cost"
     ]
     st.dataframe(best_11[columns_to_show])
 
