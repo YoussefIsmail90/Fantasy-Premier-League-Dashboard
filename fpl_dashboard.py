@@ -684,8 +684,8 @@ def tab_best_xi(players_df, difficulty_df):
         players_df["club_next_opponent"] = players_df["club_next_opponent"].fillna("Unknown")
 
     # **DEBUGGING**: Display players_df after merging
-    st.markdown("### **Players Data with Next Fixture Info**")
-    st.dataframe(players_df[["first_name", "last_name", "club", "club_next_opponent", "club_next_difficulty"]].head(10))
+    # st.markdown("### **Players Data with Next Fixture Info**")
+    # st.dataframe(players_df[["first_name", "last_name", "club", "club_next_opponent", "club_next_difficulty"]].head(10))
 
     # Weighted formula for Best XI scoring
     # Assuming lower difficulty means easier fixture, hence higher score
