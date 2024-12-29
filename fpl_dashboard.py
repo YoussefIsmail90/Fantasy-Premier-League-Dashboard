@@ -190,7 +190,7 @@ def fetch_fixtures_data():
         st.error(f"Error fetching fixture data: {e}")
         return pd.DataFrame()
 
-def compute_next_fixture_difficulty_multiple(clubs_df, num_fixtures=2):
+def compute_next_fixture_difficulty_multiple(clubs_df, num_fixtures=1):
     """
     For each club, find the earliest *num_fixtures* fixtures that are not finished
     and record their difficulties and opponents. Return a DataFrame with:
