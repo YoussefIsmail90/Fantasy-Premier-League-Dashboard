@@ -608,18 +608,19 @@ def tab_advanced(players_df):
 # --- 4g. Best XI with Difficulty Consideration ---
 def tab_best_xi(players_df, difficulty_df):
     """
-    1) Merge each player's club to 'club_next_difficulty' from difficulty_df
-    2) Compute: score_for_best_xi = total_points + 2*form + (5 - club_next_difficulty)
+    1) Merge each player's club to 'club_next_difficulty' & 'club_next_opponent'
+    2) Compute: score_for_best_xi = total_points + 1.5*form + 3.0*(club_next_difficulty) [Or your own formula]
     3) Pick a 1-4-3-3 squad
     """
-    st.markdown("## Best XI (1-4-3-3) with Difficulty Factor")
+    st.markdown("## Best XI (1-4-3-3) with Difficulty & Opponent Info")
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No player data or missing 'position' info.")
         return
 
-    # If difficulty_df is empty, default = 3
+    # If difficulty_df is empty, fallback to default
     if difficulty_df.empty:
         players_df["club_next_difficulty"] = 3
+        players_df["club_next_opponent"] = "Unknown"
     else:
         # Merge on 'club'
         players_df = players_df.merge(
@@ -627,14 +628,14 @@ def tab_best_xi(players_df, difficulty_df):
             on="club",
             how="left"
         )
-        # Fill missing with 3
         players_df["club_next_difficulty"] = players_df["club_next_difficulty"].fillna(3)
+        players_df["club_next_opponent"] = players_df["club_next_opponent"].fillna("Unknown")
 
     # Weighted formula
     players_df["score_for_best_xi"] = (
         players_df["total_points"] 
         + 1.5 * players_df["form"] 
-        + 3.0 * ((players_df["club_next_difficulty"]))
+        + 3.0 * players_df["club_next_difficulty"]
     )
 
     # 1 GK, 4 Def, 3 Mid, 3 Fwd
@@ -647,7 +648,7 @@ def tab_best_xi(players_df, difficulty_df):
     mids = pick_top_n("Midfielder", 3)
     fwds = pick_top_n("Forward", 3)
 
-    best_11 = pd.concat([gk, defenders, mids, fwds]).copy()
+    best_11 = pd.concat([gk, defenders, mids, fwds], ignore_index=True)
 
     fig = px.bar(
         best_11,
@@ -655,7 +656,7 @@ def tab_best_xi(players_df, difficulty_df):
         y="score_for_best_xi",
         color="club",
         color_discrete_sequence=px.colors.qualitative.Pastel2,
-        title="Recommended XI (Weighted by Points, Form, and Next Fixture Difficulty)"
+        title="Recommended XI (Weighted by Points, Form, & Next Fixture Difficulty)"
     )
     fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title="Score")
     st.plotly_chart(fig)
@@ -663,9 +664,11 @@ def tab_best_xi(players_df, difficulty_df):
     st.write("### Detailed Best XI Table")
     columns_to_show = [
         "first_name","last_name","club","position","total_points","form",
-        "club_next_difficulty","score_for_best_xi","goals_scored","assists","clean_sheets","cost"
+        "club_next_difficulty","club_next_opponent","score_for_best_xi",
+        "goals_scored","assists","clean_sheets","cost"
     ]
     st.dataframe(best_11[columns_to_show])
+
 
 # ----------------------------------------------------------------------
 # 5. MAIN APP
