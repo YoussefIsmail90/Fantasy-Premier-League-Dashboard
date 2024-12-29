@@ -190,28 +190,40 @@ def fetch_fixtures_data():
         st.error(f"Error fetching fixture data: {e}")
         return pd.DataFrame()
 
-def compute_next_fixture_difficulty_multiple(clubs_df, num_fixtures=1):
+import pytz
+from datetime import datetime
+
+def compute_next_fixture_difficulty(clubs_df):
     """
-    For each club, find the earliest *num_fixtures* fixtures that are not finished
-    and record their difficulties and opponents. Return a DataFrame with:
-       club, fixture_number, club_next_difficulty, club_next_opponent
+    For each club, find the earliest *un-finished* fixture with kickoff_time after now
+    and record its difficulty and opponent. Return a DataFrame with:
+       club, club_next_difficulty, club_next_opponent
     """
     fix_df = fetch_fixtures_data()
     if fix_df.empty:
-        return pd.DataFrame(columns=["club", "fixture_number", "club_next_difficulty", "club_next_opponent"])
+        return pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
 
-    # Convert kickoff_time to datetime
-    fix_df["kickoff_time"] = pd.to_datetime(fix_df["kickoff_time"], errors="coerce")
+    # Convert kickoff_time to datetime with timezone awareness
+    fix_df["kickoff_time"] = pd.to_datetime(fix_df["kickoff_time"], errors="coerce").dt.tz_convert('UTC')
+    
+    # Get current time in UTC
+    now_utc = datetime.now(pytz.UTC)
 
-    # Filter for fixtures that are not finished
-    fix_df = fix_df[fix_df["finished"] == False].copy()
+    # Filter for fixtures that are not finished and have kickoff_time after now
+    fix_df = fix_df[(fix_df["finished"] == False) & (fix_df["kickoff_time"] > now_utc)].copy()
     if fix_df.empty:
-        return pd.DataFrame(columns=["club", "fixture_number", "club_next_difficulty", "club_next_opponent"])
+        return pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
 
     # Map club IDs to names
     id_map = dict(zip(clubs_df["id"], clubs_df["name"]))
     fix_df["HomeName"] = fix_df["team_h"].map(id_map)
     fix_df["AwayName"] = fix_df["team_a"].map(id_map)
+
+    # Check for any unmapped teams
+    unmapped_teams = fix_df["team_h"].append(fix_df["team_a"]).unique()
+    unmapped_names = [team_id for team_id in unmapped_teams if team_id not in id_map]
+    if unmapped_names:
+        st.warning(f"Unmapped team IDs found: {unmapped_names}")
 
     # Rename difficulty columns for clarity
     fix_df.rename(columns={
@@ -223,27 +235,33 @@ def compute_next_fixture_difficulty_multiple(clubs_df, num_fixtures=1):
     fix_df.sort_values("kickoff_time", inplace=True)
 
     # Home perspective
-    home_df = fix_df[["HomeName", "AwayName", "HomeDiff", "kickoff_time"]].dropna(subset=["HomeName"])
+    home_df = fix_df[["HomeName", "AwayName", "HomeDiff"]].dropna(subset=["HomeName"])
     home_df["club"] = home_df["HomeName"]
     home_df["club_next_difficulty"] = home_df["HomeDiff"]
     home_df["club_next_opponent"] = home_df["AwayName"]  # Opponent for home club is the away team
+    home_df = home_df.groupby("club", as_index=False).first()
+    home_df = home_df[["club", "club_next_difficulty", "club_next_opponent"]]
 
     # Away perspective
-    away_df = fix_df[["AwayName", "HomeName", "AwayDiff", "kickoff_time"]].dropna(subset=["AwayName"])
+    away_df = fix_df[["AwayName", "HomeName", "AwayDiff"]].dropna(subset=["AwayName"])
     away_df["club"] = away_df["AwayName"]
     away_df["club_next_difficulty"] = away_df["AwayDiff"]
     away_df["club_next_opponent"] = away_df["HomeName"]  # Opponent for away club is the home team
+    away_df = away_df.groupby("club", as_index=False).first()
+    away_df = away_df[["club", "club_next_difficulty", "club_next_opponent"]]
 
     # Combine home and away DataFrames
     combined_df = pd.concat([home_df, away_df], ignore_index=True)
 
-    # Assign fixture numbers per club
-    combined_df["fixture_number"] = combined_df.groupby("club").cumcount() + 1
+    # Group by club to ensure each club appears only once with their earliest fixture
+    combined_df = combined_df.groupby("club", as_index=False).first()
 
-    # Filter to keep only the desired number of fixtures
-    combined_df = combined_df[combined_df["fixture_number"] <= num_fixtures]
+    # **DEBUGGING**: Display combined_df for verification
+    st.markdown("### **Next Fixture Difficulty and Opponents**")
+    st.dataframe(combined_df)
 
     return combined_df
+
 
 def refresh_data():
     """
