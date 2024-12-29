@@ -634,7 +634,7 @@ def tab_best_xi(players_df, difficulty_df):
     players_df["score_for_best_xi"] = (
         players_df["total_points"] 
         + 2.0 * players_df["form"] 
-        + (5.0 - players_df["club_next_difficulty"])
+        + 3.0 * ((5.0 - players_df["club_next_difficulty"]))
     )
 
     # 1 GK, 4 Def, 3 Mid, 3 Fwd
