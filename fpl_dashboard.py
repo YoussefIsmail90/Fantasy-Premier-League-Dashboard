@@ -661,9 +661,9 @@ def tab_best_xi(players_df, difficulty_df):
     # Define available formations
     formations = {
         '1-4-3-3': {'Goalkeeper':1, 'Defender':4, 'Midfielder':3, 'Forward':3},
-        '1-3-5-1': {'Goalkeeper':1, 'Defender':3, 'Midfielder':5, 'Forward':1},
         '1-4-4-2': {'Goalkeeper':1, 'Defender':4, 'Midfielder':4, 'Forward':2},
-        '1-5-3-1': {'Goalkeeper':1, 'Defender':5, 'Midfielder':3, 'Forward':1},
+        '1-5-3-2': {'Goalkeeper':1, 'Defender':5, 'Midfielder':3, 'Forward':2},
+        '1-5-4-1': {'Goalkeeper':1, 'Defender':5, 'Midfielder':3, 'Forward':1},
         '1-4-5-1': {'Goalkeeper':1, 'Defender':4, 'Midfielder':5, 'Forward':1},
         # Add more formations as needed
     }
