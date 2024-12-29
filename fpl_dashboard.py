@@ -646,16 +646,30 @@ def tab_advanced(players_df):
     st.plotly_chart(fig)
 
 # --- 4g. Best XI with Difficulty and Opponent ---
+# --- 4g. Best XI with Difficulty and Opponent (Updated) ---
 def tab_best_xi(players_df, difficulty_df):
     """
-    1) Merge each player's club to 'club_next_difficulty' & 'club_next_opponent'
-    2) Compute: score_for_best_xi = total_points + 1.5*form + 3.0/(club_next_difficulty)
-    3) Pick a 1-4-3-3 squad
+    Allows users to select a formation, computes the Best XI based on the formation,
+    incorporates next fixture difficulty and opponent into the scoring formula,
+    and visualizes the squad on a football pitch.
     """
-    st.markdown("## Best XI (1-4-3-3) with Difficulty & Opponent Info")
+    st.markdown("## Best XI with Formation Selection and Fixture Info")
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No player data or missing 'position' info.")
         return
+
+    # Define available formations
+    formations = {
+        '1-4-3-3': {'Goalkeeper':1, 'Defender':4, 'Midfielder':3, 'Forward':3},
+        '1-3-5-1': {'Goalkeeper':1, 'Defender':3, 'Midfielder':5, 'Forward':1},
+        '1-4-4-2': {'Goalkeeper':1, 'Defender':4, 'Midfielder':4, 'Forward':2},
+        '1-5-3-1': {'Goalkeeper':1, 'Defender':5, 'Midfielder':3, 'Forward':1},
+        # Add more formations as needed
+    }
+
+    # Let user select a formation
+    selected_formation = st.selectbox("Select Formation:", options=list(formations.keys()), index=1)  # Default to '1-3-5-1'
+    formation_structure = formations[selected_formation]
 
     # If difficulty_df is empty, fallback to default values
     if difficulty_df.empty:
@@ -684,53 +698,63 @@ def tab_best_xi(players_df, difficulty_df):
         subset = players_df[players_df["position"] == position]
         return subset.sort_values("score_for_best_xi", ascending=False).head(n)
 
-    # Select players for each position
-    gk = pick_top_n("Goalkeeper", 1)
-    defenders = pick_top_n("Defender", 4)
-    mids = pick_top_n("Midfielder", 3)
-    fwds = pick_top_n("Forward", 3)
+    # Select players based on the chosen formation
+    selected_players = []
+    for pos, count in formation_structure.items():
+        top_players = pick_top_n(pos, count)
+        if len(top_players) < count:
+            st.warning(f"Not enough players available for position: {pos}. Needed {count}, found {len(top_players)}.")
+        selected_players.append(top_players)
 
     # Combine into Best XI
-    best_11 = pd.concat([gk, defenders, mids, fwds], ignore_index=True)
+    best_11 = pd.concat(selected_players, ignore_index=True)
 
-    # Assign coordinates based on formation (1-4-3-3)
-    def assign_coordinates(best_11_df):
-        positions = best_11_df["position"].tolist()
+    # Assign coordinates based on formation
+    def assign_coordinates(best_11_df, formation):
         coordinates = []
         pos_counters = {"Goalkeeper": 0, "Defender": 0, "Midfielder": 0, "Forward": 0}
 
-        for pos in positions:
+        # Define x positions based on roles
+        x_positions = {
+            'Goalkeeper': 5,
+            'Defender': 30,
+            'Midfielder': 50,
+            'Forward': 70
+        }
+
+        # Define y ranges based on formation
+        y_ranges = {
+            'Defender': {
+                3: [20, 40, 60],
+                4: [15, 30, 50, 65],
+                5: [10, 25, 40, 55, 70]
+            },
+            'Midfielder': {
+                3: [30, 50, 70],
+                4: [20, 35, 65, 80],
+                5: [10, 25, 40, 55, 70]
+            },
+            'Forward': {
+                1: [50],
+                2: [35, 65],
+                3: [30, 50, 70]
+            }
+        }
+
+        for _, row in best_11_df.iterrows():
+            pos = row['position']
+            count = pos_counters[pos]
             if pos == "Goalkeeper":
-                x, y = 5, 50
-            elif pos == "Defender":
-                count = pos_counters["Defender"]
-                if count == 0:
-                    y = 20
-                elif count == 1:
-                    y = 35
-                elif count == 2:
-                    y = 65
-                elif count == 3:
-                    y = 80
-                x = 30
-            elif pos == "Midfielder":
-                count = pos_counters["Midfielder"]
-                if count == 0:
-                    y = 30
-                elif count == 1:
-                    y = 50
-                elif count == 2:
-                    y = 70
-                x = 50
-            elif pos == "Forward":
-                count = pos_counters["Forward"]
-                if count == 0:
-                    y = 35
-                elif count == 1:
-                    y = 50
-                elif count == 2:
-                    y = 65
-                x = 70
+                x, y = x_positions[pos], 50
+            else:
+                total = formation_structure[pos]
+                if pos == "Defender":
+                    y = y_ranges[pos].get(total, [50])[count]
+                elif pos == "Midfielder":
+                    y = y_ranges[pos].get(total, [50])[count]
+                elif pos == "Forward":
+                    y = y_ranges[pos].get(total, [50])[count]
+                x = x_positions[pos]
             coordinates.append((x, y))
             pos_counters[pos] += 1
 
@@ -739,7 +763,7 @@ def tab_best_xi(players_df, difficulty_df):
         best_11_df["y"] = [coord[1] for coord in coordinates]
         return best_11_df
 
-    best_11 = assign_coordinates(best_11)
+    best_11 = assign_coordinates(best_11, selected_formation)
 
     # Fetch and cache player images
     @st.cache_data(show_spinner=False)
@@ -778,14 +802,6 @@ def tab_best_xi(players_df, difficulty_df):
                             frameon=False, box_alignment=(0.5, 0.5))
         ax.add_artist(ab)
 
-        # Add player name below the image with increased offset
-        # ax.text(x_pitch, y_pitch - 10, f"{row['first_name']} {row['last_name']}",
-        #         ha='center', va='top', color='white', fontsize=8, weight='bold')
-
-        # # Add player stats below the name
-        # ax.text(x_pitch, y_pitch - 15, f"Pts: {row['total_points']}\nForm: {row['form']:.1f}\nDiff: {row['club_next_difficulty']}",
-        #         ha='center', va='top', color='white', fontsize=6, alpha=0.7)
-
     # Display the pitch with players
     st.pyplot(fig)
 
@@ -796,7 +812,8 @@ def tab_best_xi(players_df, difficulty_df):
         "club_next_difficulty", "club_next_opponent", "score_for_best_xi",
         "goals_scored", "assists", "clean_sheets", "cost"
     ]
-    st.dataframe(best_11[columns_to_show])
+    st.dataframe(best_11[columns_to_show].reset_index(drop=True))
+
 
 # ------------------------------------------------------------------------------
 # 5. MAIN APP
