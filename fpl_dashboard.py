@@ -653,7 +653,7 @@ def tab_best_xi(players_df, difficulty_df):
     incorporates next fixture difficulty and opponent into the scoring formula,
     and visualizes the squad on a football pitch.
     """
-    st.markdown("## Best XI with Formation Selection and Fixture Info")
+    st.markdown("## Best XI with Formation Selection")
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No player data or missing 'position' info.")
         return
