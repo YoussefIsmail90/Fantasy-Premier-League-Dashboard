@@ -1,16 +1,16 @@
 import streamlit as st
 import requests
 import pandas as pd
-from mplsoccer import Pitch
 import matplotlib.pyplot as plt
+from mplsoccer import Pitch
 from PIL import Image
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from io import BytesIO
 import pytz
 from datetime import datetime
 import logging
 import re
-import plotly.express as px
-import numpy as np
+
 # ------------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -750,12 +750,11 @@ def tab_best_xi(players_df, difficulty_df):
             # Return a placeholder image in case of error
             return Image.open(BytesIO(requests.get("https://via.placeholder.com/110x140.png?text=No+Image").content))
 
-    # Create Plotly figure with football pitch
-    # Using mplsoccer for better pitch drawing and image placement
+    # Create football pitch using mplsoccer
     pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
     fig, ax = pitch.draw(figsize=(10, 6))
 
-    # Plot player images
+    # Plot player images and annotations
     for idx, row in best_11.iterrows():
         img = get_player_image(row['photo_url'])
         # Resize image to fit the pitch
@@ -766,7 +765,9 @@ def tab_best_xi(players_df, difficulty_df):
 
         # Calculate position: convert x and y from percentage to pitch coordinates
         # mplsoccer uses a range of 0 to 120 for x and 0 to 80 for y by default
-        x_pitch, y_pitch = pitch.px2pitch(row['x'], row['y'])
+        # So, we need to map x:0-100 to 0-120 and y:0-100 to 0-80
+        x_pitch = (row['x'] / 100) * 120
+        y_pitch = (row['y'] / 100) * 80
 
         # Add image to the pitch
         imagebox = OffsetImage(img_np, zoom=1)
@@ -778,7 +779,7 @@ def tab_best_xi(players_df, difficulty_df):
         ax.text(x_pitch, y_pitch - 5, f"{row['first_name']} {row['last_name']}",
                 ha='center', va='top', color='white', fontsize=8, weight='bold')
 
-        # Add hover annotation with player stats
+        # Add player stats as text
         ax.text(x_pitch, y_pitch + 5, f"Pts: {row['total_points']}\nForm: {row['form']:.1f}\nDifficulty: {row['club_next_difficulty']}",
                 ha='center', va='bottom', color='white', fontsize=6, alpha=0.7)
 
