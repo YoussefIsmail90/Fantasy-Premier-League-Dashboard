@@ -13,6 +13,7 @@ import re
 import numpy as np
 import plotly.express as px
 
+
 # ------------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -750,7 +751,7 @@ def tab_best_xi(players_df, difficulty_df):
             return img
         except:
             # Return a placeholder image in case of error
-            return Image.open(BytesIO(requests.get("https://via.placeholder.com/110x140.png?text=No+Image").content))
+            return Image.open(BytesIO(requests.get("https://via.placeholder.com/60x80.png?text=No+Image").content))
 
     # Create football pitch using mplsoccer
     pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
@@ -777,13 +778,13 @@ def tab_best_xi(players_df, difficulty_df):
                             frameon=False, box_alignment=(0.5, 0.5))
         ax.add_artist(ab)
 
-        # Add player name below the image
-        ax.text(x_pitch, y_pitch - 5, f"{row['first_name']} {row['last_name']}",
+        # Add player name below the image with increased offset
+        ax.text(x_pitch, y_pitch - 10, f"{row['first_name']} {row['last_name']}",
                 ha='center', va='top', color='white', fontsize=8, weight='bold')
 
-        # Add player stats as text
-        ax.text(x_pitch, y_pitch + 5, f"Pts: {row['total_points']}\nForm: {row['form']:.1f}\nDifficulty: {row['club_next_difficulty']}",
-                ha='center', va='bottom', color='white', fontsize=6, alpha=0.7)
+        # Add player stats below the name
+        ax.text(x_pitch, y_pitch - 15, f"Pts: {row['total_points']}\nForm: {row['form']:.1f}\nDiff: {row['club_next_difficulty']}",
+                ha='center', va='top', color='white', fontsize=6, alpha=0.7)
 
     # Display the pitch with players
     st.pyplot(fig)
