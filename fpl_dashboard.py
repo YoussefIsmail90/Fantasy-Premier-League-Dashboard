@@ -11,6 +11,8 @@ from datetime import datetime
 import logging
 import re
 import numpy as np
+import plotly.express as px
+
 # ------------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
 # ------------------------------------------------------------------------------
