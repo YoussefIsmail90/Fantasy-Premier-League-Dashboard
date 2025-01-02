@@ -531,6 +531,7 @@ def tab_best_players(players_df):
         st.warning("No players or missing 'position' info.")
         return
 
+    # Define relevant metrics per position
     metrics_map = {
         "Goalkeeper": ["saves", "clean_sheets", "form"],
         "Defender": ["expected_goals", "expected_assists", "clean_sheets", "influence", "creativity", "threat", "form"],
@@ -539,28 +540,76 @@ def tab_best_players(players_df):
     }
 
     positions_in_data = sorted(players_df["position"].dropna().unique().tolist())
-    chosen_position = st.selectbox("Position", positions_in_data)
+    chosen_position = st.selectbox("Select a Position", positions_in_data)
     relevant_metrics = metrics_map.get(chosen_position, [])
 
+    # Filter for chosen position & compute combined_score
     pos_df = players_df[players_df["position"] == chosen_position].copy()
     for m in relevant_metrics:
         pos_df[m] = pd.to_numeric(pos_df[m], errors="coerce").fillna(0)
 
     pos_df["combined_score"] = pos_df[relevant_metrics].sum(axis=1)
-    top_10 = pos_df.sort_values("combined_score", ascending=False).head(10)
+    top_10 = pos_df.sort_values("combined_score", ascending=False).head(10).reset_index(drop=True)
 
-    fig = px.bar(
-        top_10,
-        x="last_name",
-        y="combined_score",
-        color="club",
-        color_discrete_sequence=px.colors.qualitative.Set3,
-        title=f"Top 10 {chosen_position}s"
+    st.markdown(f"### Top 10 {chosen_position}s by Combined Score")
+
+    # Create a bar chart using graph_objects
+    fig = go.Figure()
+
+    # Add a Bar trace
+    fig.add_trace(
+        go.Bar(
+            x=top_10["last_name"],
+            y=top_10["combined_score"],
+            text=top_10["club"],
+            textposition="auto",
+            marker_color="indianred"  # pick any color or colormap you like
+        )
     )
-    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title="Score")
-    st.plotly_chart(fig)
 
-    st.dataframe(top_10[["first_name", "last_name", "club", "position"] + relevant_metrics])
+    # Add player images on top of each bar
+    # We'll place each image slightly above the bar,
+    # using xref="x", yref="y" so that coordinates align with data values.
+    for i, row in top_10.iterrows():
+        # Fallback if we have a missing photo:
+        photo_url = row["photo_url"] if pd.notnull(row["photo_url"]) else "https://via.placeholder.com/110x140.png?text=No+Image"
+        
+        # We'll add a small offset to the bar's top so images don't overlap
+        y_offset = row["combined_score"] * 0.05 + 1  # tweak as needed
+
+        fig.add_layout_image(
+            dict(
+                source=photo_url,
+                xref="x",      # x is in terms of the x-axis data
+                yref="y",      # y is in terms of the y-axis data
+                x=row.name,    # the index in top_10 => i
+                y=row["combined_score"] + y_offset,
+                xanchor="center",
+                yanchor="bottom",
+                sizex=0.6,     # how wide the image should be
+                sizey=0.6,     # how tall the image should be
+                sizing="contain",
+                opacity=1.0,
+                layer="above"
+            )
+        )
+
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"Top 10 {chosen_position}s with Player Images",
+        xaxis_title="Player (Last Name)",
+        yaxis_title="Combined Score",
+        # Increase margins so images are not cut off
+        margin=dict(l=60, r=60, t=80, b=80)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Display a detailed stats table below
+    st.markdown("### Detailed Stats for the Top 10")
+    display_cols = ["first_name", "last_name", "club", "position"] + relevant_metrics + ["combined_score"]
+    st.dataframe(top_10[display_cols].reset_index(drop=True), height=600)
+
 
 # ------------------ 4f. Advanced Explorer ------------------
 def tab_advanced(players_df):
