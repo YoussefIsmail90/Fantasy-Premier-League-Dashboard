@@ -789,7 +789,7 @@ def tab_best_xi(players_df, difficulty_df):
     # Plot each player on the pitch
     for _, row in best_11.iterrows():
         x_pitch = (row['x'] / 100) * 120
-        y_pitch = (row['y'] / 100) * 80
+        y_pitch = (row['y'] / 100) * 70
 
         # Circle behind the image to highlight position
         circle_color = position_colors.get(row['position'], "white")
@@ -801,9 +801,9 @@ def tab_best_xi(players_df, difficulty_df):
         ax.add_artist(circle)
 
         # Fetch & place the player photo
-        img = get_resized_player_image(row['photo_url'], width=60, height=70)
+        img = get_resized_player_image(row['photo_url'], width=60, height=80)
         img_np = np.array(img)
-        imagebox = OffsetImage(img_np, zoom=0.6)
+        imagebox = OffsetImage(img_np, zoom=0.5)
         ab = AnnotationBbox(
             imagebox,
             (x_pitch, y_pitch),
