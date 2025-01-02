@@ -11,8 +11,10 @@ from datetime import datetime
 import logging
 import re
 import numpy as np
+
+# Plotly
 import plotly.express as px
-import plotly.graph_objects as go
+import plotly.graph_objects as go  # needed for custom bar chart + images
 
 # ---------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
@@ -76,19 +78,19 @@ div[data-testid="stToolbar"] {
 /* Perfectly circular floating button in the top-right */
 .floating-btn {
     position: fixed;
-    top: 25px;        /* Position from the top */
-    right: 25px;      /* Position from the right */
-    width: 55px;      /* Fixed width to form a circle */
-    height: 55px;     /* Fixed height to form a circle */
+    top: 25px;
+    right: 25px;
+    width: 55px;
+    height: 55px;
     border-radius: 50%;
     background-color: #FF4B4B;
     border: none;
     outline: none;
     color: white;
     cursor: pointer;
-    font-size: 25px;  /* Larger text/icon size */
+    font-size: 25px;
     text-align: center;
-    line-height: 55px; /* Ensures icon/text is vertically centered */
+    line-height: 55px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     transition: 0.3s;
     z-index: 9999;
@@ -229,8 +231,7 @@ def fetch_fixtures_data():
 def compute_next_fixture_difficulty(clubs_df):
     """
     For each club, find the earliest *un-finished* fixture with kickoff_time after now
-    and record its difficulty and opponent. Return a DataFrame with:
-       club, club_next_difficulty, club_next_opponent
+    and record its difficulty and opponent.
     """
     fix_df = fetch_fixtures_data()
     if fix_df.empty:
@@ -247,10 +248,10 @@ def compute_next_fixture_difficulty(clubs_df):
     # Get current time in UTC
     now_utc = datetime.now(pytz.UTC)
 
-    # Filter for fixtures that are not finished and have kickoff_time after now
+    # Filter for fixtures not finished and after now
     fix_df = fix_df[(fix_df["finished"] == False) & (fix_df["kickoff_time"] > now_utc)].copy()
     if fix_df.empty:
-        st.warning("No upcoming fixtures after the current time.")
+        st.warning("No upcoming fixtures after current time.")
         return pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
 
     # Map club IDs to names
@@ -258,13 +259,12 @@ def compute_next_fixture_difficulty(clubs_df):
     fix_df["HomeName"] = fix_df["team_h"].map(id_map)
     fix_df["AwayName"] = fix_df["team_a"].map(id_map)
 
-    # Rename difficulty columns
     fix_df.rename(columns={
         "team_h_difficulty": "HomeDiff",
         "team_a_difficulty": "AwayDiff"
     }, inplace=True)
 
-    # Create two entries per fixture: one for home, one for away
+    # Create two entries (home, away) per fixture
     home_entries = fix_df[["HomeName", "AwayName", "HomeDiff", "kickoff_time"]].copy()
     home_entries.rename(columns={
         "HomeName": "club",
@@ -281,7 +281,7 @@ def compute_next_fixture_difficulty(clubs_df):
 
     combined_df = pd.concat([home_entries, away_entries], ignore_index=True)
 
-    # Sort by club and kickoff_time
+    # Sort by club, kickoff_time, keep earliest
     combined_df.sort_values(by=["club", "kickoff_time"], inplace=True)
     combined_df = combined_df.drop_duplicates(subset=["club"], keep='first')
 
@@ -290,17 +290,15 @@ def compute_next_fixture_difficulty(clubs_df):
         "opponent": "club_next_opponent"
     }, inplace=True)
 
-    combined_df = combined_df[["club", "club_next_difficulty", "club_next_opponent"]]
-    return combined_df
+    return combined_df[["club", "club_next_difficulty", "club_next_opponent"]]
 
 def refresh_data():
     """
     Fetch new data, prepare players/clubs, compute next fixture difficulty,
-    and store everything in session state.
+    and store in session state.
     """
     raw_data = fetch_fpl_data()
     p_df, c_df = prepare_data(raw_data)
-
     if not c_df.empty:
         difficulty_df = compute_next_fixture_difficulty(c_df)
     else:
@@ -334,18 +332,18 @@ def instructions_expander():
         - Each tab has a unique feature: from 'Overview' to 'Best XI'.
 
         **Data Refresh**:
-        - Click the **floating refresh button** at the top-right 
-          corner to re-fetch the latest FPL data & fixture difficulties.
+        - Click the floating refresh button at the top-right 
+          to re-fetch the latest FPL data & fixture difficulties.
 
         **Key Features**:
         - **Overview**: Explore top players by various metrics.
         - **Search Player**: Search by last name substring (and see player images).
-        - **Compare Clubs**: Compare aggregated stats between two clubs.
-        - **Compare Players**: Compare multiple players side by side (with photos and a chart).
-        - **Best Players**: Position-based top performers by advanced metrics.
-        - **Advanced Explorer**: Pick any numeric columns for a custom scatter plot.
-        - **Best XI**: Incorporates next fixture difficulty and opponent into the scoring formula.
-        
+        - **Compare Clubs**: Compare aggregated stats between clubs.
+        - **Compare Players**: Compare multiple players side by side.
+        - **Best Players**: Position-based top performers with images in the bar chart.
+        - **Advanced Explorer**: Custom scatter plot of numeric columns.
+        - **Best XI**: Enhanced pitch visualization with images + color-coded circles.
+
         Enjoy exploring the data!
         """)
 
@@ -361,12 +359,12 @@ def tab_overview(players_df):
         "clean_sheets", "minutes_played", "popularity", 
         "cost", "form"
     ]
-    chosen_metric = st.selectbox("Choose a Metric to Rank Players By:", metric_options, index=0)
+    chosen_metric = st.selectbox("Choose a Metric:", metric_options, index=0)
     top_n = st.slider("How many top players to display?", min_value=5, max_value=50, value=10)
 
     top_players = players_df.sort_values(by=chosen_metric, ascending=False).head(top_n)
     
-    st.write(f"### Top {top_n} Players by **{chosen_metric.replace('_', ' ').title()}**")
+    st.write(f"### Top {top_n} Players by {chosen_metric.replace('_', ' ').title()}")
     fig = px.bar(
         top_players,
         x="last_name",
@@ -375,7 +373,7 @@ def tab_overview(players_df):
         title=f"Top {top_n} by {chosen_metric.replace('_', ' ').title()}",
         color_discrete_sequence=px.colors.qualitative.Pastel2
     )
-    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title=chosen_metric.replace('_', ' ').title())
+    fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title=chosen_metric.title())
     st.plotly_chart(fig)
     
     st.write("### Detailed Stats Table")
@@ -415,7 +413,7 @@ def tab_search_player(players_df):
                     st.write(f"**Club**: {row['club']}")
                     st.write(f"**Position**: {row['position']}")
                     st.write(f"**Total Points**: {row['total_points']}")
-                    st.write(f"**Goals Scored**: {row['goals_scored']}")
+                    st.write(f"**Goals**: {row['goals_scored']}")
                     st.write(f"**Assists**: {row['assists']}")
                     st.write(f"**Clean Sheets**: {row['clean_sheets']}")
                     st.write(f"**Cost**: £{row['cost']}m")
@@ -478,7 +476,7 @@ def tab_compare_players(players_df):
 
     selected_df = players_df[players_df["last_name"].isin(selected_players)].copy()
 
-    # Cap the display at 5 players
+    # Cap display at 5 players
     n_players = len(selected_df)
     max_cols = min(n_players, 5)
 
@@ -488,8 +486,7 @@ def tab_compare_players(players_df):
 
     cols = st.columns(max_cols)
     for idx, (i, row) in enumerate(selected_df.iterrows()):
-        col_index = idx % max_cols
-        with cols[col_index]:
+        with cols[idx % max_cols]:
             photo_url = row.get("photo_url", "https://via.placeholder.com/110x140.png?text=No+Image")
             st.image(photo_url, width=110)
             st.markdown(f"### {row['first_name']} {row['last_name']}")
@@ -525,14 +522,18 @@ def tab_compare_players(players_df):
     fig_comp.update_layout(legend_title_text="Players")
     st.plotly_chart(fig_comp)
 
-# ------------------ 4e. Best Players ------------------
+# ------------------ 4e. Best Players (Enhanced with Player Images in Bar Chart) ------------------
 def tab_best_players(players_df):
+    """
+    Enhanced 'Best Players' tab:
+    1) Summation-based 'combined_score'.
+    2) Plotly bar chart with each player's image above the bar.
+    """
     st.markdown("## Best Players by Position")
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No players or missing 'position' info.")
         return
 
-    # Define relevant metrics per position
     metrics_map = {
         "Goalkeeper": ["saves", "clean_sheets", "form"],
         "Defender": ["expected_goals", "expected_assists", "clean_sheets", "influence", "creativity", "threat", "form"],
@@ -541,10 +542,9 @@ def tab_best_players(players_df):
     }
 
     positions_in_data = sorted(players_df["position"].dropna().unique().tolist())
-    chosen_position = st.selectbox("Select a Position", positions_in_data)
+    chosen_position = st.selectbox("Select a Position:", positions_in_data)
     relevant_metrics = metrics_map.get(chosen_position, [])
 
-    # Filter for chosen position & compute combined_score
     pos_df = players_df[players_df["position"] == chosen_position].copy()
     for m in relevant_metrics:
         pos_df[m] = pd.to_numeric(pos_df[m], errors="coerce").fillna(0)
@@ -554,41 +554,35 @@ def tab_best_players(players_df):
 
     st.markdown(f"### Top 10 {chosen_position}s by Combined Score")
 
-    # Create a bar chart using graph_objects
+    # Create Bar chart using go.Figure
     fig = go.Figure()
-
-    # Add a Bar trace
     fig.add_trace(
         go.Bar(
             x=top_10["last_name"],
             y=top_10["combined_score"],
             text=top_10["club"],
             textposition="auto",
-            marker_color="indianred"  # pick any color or colormap you like
+            marker_color="indianred"
         )
     )
 
-    # Add player images on top of each bar
-    # We'll place each image slightly above the bar,
-    # using xref="x", yref="y" so that coordinates align with data values.
+    # Add player images above each bar
     for i, row in top_10.iterrows():
-        # Fallback if we have a missing photo:
-        photo_url = row["photo_url"] if pd.notnull(row["photo_url"]) else "https://via.placeholder.com/110x140.png?text=No+Image"
-        
-        # We'll add a small offset to the bar's top so images don't overlap
-        y_offset = row["combined_score"] * 0.05 + 1  # tweak as needed
+        photo_url = row.get("photo_url", "https://via.placeholder.com/110x140.png?text=No+Image")
+        # Slight offset above the bar
+        y_offset = 1 + row["combined_score"] * 0.05
 
         fig.add_layout_image(
             dict(
                 source=photo_url,
-                xref="x",      # x is in terms of the x-axis data
-                yref="y",      # y is in terms of the y-axis data
-                x=row.name,    # the index in top_10 => i
+                xref="x",
+                yref="y",
+                x=i,  # matches the bar index
                 y=row["combined_score"] + y_offset,
                 xanchor="center",
                 yanchor="bottom",
-                sizex=0.6,     # how wide the image should be
-                sizey=0.6,     # how tall the image should be
+                sizex=0.6,
+                sizey=0.6,
                 sizing="contain",
                 opacity=1.0,
                 layer="above"
@@ -598,19 +592,17 @@ def tab_best_players(players_df):
     fig.update_layout(
         template="plotly_dark",
         title=f"Top 10 {chosen_position}s with Player Images",
-        xaxis_title="Player (Last Name)",
-        yaxis_title="Combined Score",
-        # Increase margins so images are not cut off
+        xaxis=dict(title="Player (Last Name)"),
+        yaxis=dict(title="Combined Score"),
         margin=dict(l=60, r=60, t=80, b=80)
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Display a detailed stats table below
-    st.markdown("### Detailed Stats for the Top 10")
+    # Display detail table
+    st.markdown("### Detailed Stats for Top 10")
     display_cols = ["first_name", "last_name", "club", "position"] + relevant_metrics + ["combined_score"]
     st.dataframe(top_10[display_cols].reset_index(drop=True), height=600)
-
 
 # ------------------ 4f. Advanced Explorer ------------------
 def tab_advanced(players_df):
@@ -649,13 +641,8 @@ def tab_advanced(players_df):
     fig.update_layout(title=f"{x_metric.replace('_', ' ').title()} vs {y_metric.replace('_', ' ').title()}")
     st.plotly_chart(fig)
 
-# ------------------ 4g. Best XI ------------------
+# ------------------ 4g. Best XI (Enhanced Visualization & No Midfielder Clustering) ------------------
 def tab_best_xi(players_df, difficulty_df):
-    """
-    Allows users to select a formation, computes the Best XI,
-    and visualizes it on a football pitch with images + enhanced styling.
-    Excludes suspended ('s') AND injured ('i') players.
-    """
     st.markdown("## Best XI with Formation Selection")
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No player data or missing 'position' info.")
@@ -664,6 +651,7 @@ def tab_best_xi(players_df, difficulty_df):
     # Exclude suspended + injured
     players_df = players_df[~players_df["status"].isin(["s", "i"])]
 
+    # Define formations
     formations = {
         '1-3-5-2': {'Goalkeeper':1, 'Defender':3, 'Midfielder':5, 'Forward':2},
         '1-4-3-3': {'Goalkeeper':1, 'Defender':4, 'Midfielder':3, 'Forward':3},
@@ -672,10 +660,10 @@ def tab_best_xi(players_df, difficulty_df):
         '1-5-4-1': {'Goalkeeper':1, 'Defender':5, 'Midfielder':4, 'Forward':1},
         '1-4-5-1': {'Goalkeeper':1, 'Defender':4, 'Midfielder':5, 'Forward':1},
     }
-    selected_formation = st.selectbox("Select Formation:", options=list(formations.keys()), index=0)
+    selected_formation = st.selectbox("Select Formation:", list(formations.keys()), index=0)
     formation_structure = formations[selected_formation]
 
-    # Merge in fixture difficulty if available
+    # Merge difficulty data
     if difficulty_df.empty:
         players_df["club_next_difficulty"] = 3
         players_df["club_next_opponent"] = "Unknown"
@@ -684,51 +672,43 @@ def tab_best_xi(players_df, difficulty_df):
         players_df["club_next_difficulty"] = players_df["club_next_difficulty"].fillna(3)
         players_df["club_next_opponent"] = players_df["club_next_opponent"].fillna("Unknown")
 
-    # Score formula
+    # Weighted formula
     players_df["score_for_best_xi"] = (
         players_df["total_points"]
         + 1.5 * players_df["form"]
         + 3.0 / players_df["club_next_difficulty"]
     )
 
-    # Helper to pick top N for each position
     def pick_top_n(position, n):
         subset = players_df[players_df["position"] == position]
         return subset.sort_values("score_for_best_xi", ascending=False).head(n)
 
     selected_players = []
     for pos, count in formation_structure.items():
-        top_players = pick_top_n(pos, count)
-        if len(top_players) < count:
-            st.warning(
-                f"Not enough players available for position: {pos}. "
-                f"Needed {count}, found {len(top_players)}."
-            )
-        selected_players.append(top_players)
+        top_p = pick_top_n(pos, count)
+        if len(top_p) < count:
+            st.warning(f"Not enough {pos} available. Needed {count}, found {len(top_p)}.")
+        selected_players.append(top_p)
 
     best_11 = pd.concat(selected_players, ignore_index=True)
 
-    # Assign coordinates
+    # New approach: Use x-ranges for midfielders to avoid crowding
     def assign_coordinates(best_11_df, formation):
         coordinates = []
         pos_counters = {"Goalkeeper": 0, "Defender": 0, "Midfielder": 0, "Forward": 0}
-    
-        # Single x positions for GK/DF/FWD
+
         x_positions = {
             'Goalkeeper': 5,
             'Defender': 30,
-            'Forward': 75
+            'Forward': 75  # shift forward to the right
         }
-        
-        # For midfielders, let's create a dictionary keyed by how many midfielders we need
-        # and store a small range of X positions we can use.
-        # You can tweak these lists to your liking.
+        # For midfielders, define multiple x coordinates for 3,4,5 midfielders
         x_ranges_mid = {
-            3: [55, 60, 65],
-            4: [52, 57, 62, 67],
-            5: [50, 55, 60, 65, 70]
+            3: [50, 55, 60],
+            4: [48, 54, 60, 66],
+            5: [45, 52, 59, 66, 73]
         }
-    
+
         y_ranges = {
             'Defender': {
                 3: [20, 40, 60],
@@ -737,8 +717,8 @@ def tab_best_xi(players_df, difficulty_df):
             },
             'Midfielder': {
                 3: [20, 50, 80],
-                4: [15, 35, 65, 85],
-                5: [10, 30, 50, 70, 90]
+                4: [15, 40, 60, 85],
+                5: [10, 25, 50, 75, 90]
             },
             'Forward': {
                 1: [50],
@@ -746,109 +726,85 @@ def tab_best_xi(players_df, difficulty_df):
                 3: [30, 50, 70]
             }
         }
-        
-        # figure out how many needed for each position from formation
-        needed_gk = formation.get('Goalkeeper', 1)
+
         needed_df = formation.get('Defender', 4)
         needed_mf = formation.get('Midfielder', 3)
         needed_fw = formation.get('Forward', 3)
-    
+
         for _, row in best_11_df.iterrows():
             pos = row['position']
             idx_pos = pos_counters[pos]
-            
+
             if pos == 'Goalkeeper':
                 x_val = x_positions['Goalkeeper']
-                # spread GKs in y if needed, e.g. if you had 2 keepers at once
-                y_candidates = [50]  # single value for 1 GK
-                y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
-    
+                y_val = 50  # single GK in the middle
+
             elif pos == 'Defender':
-                # single x for defenders, multiple y
                 x_val = x_positions['Defender']
-                total_df = needed_df
-                y_candidates = y_ranges['Defender'].get(total_df, [50])
+                y_candidates = y_ranges['Defender'].get(needed_df, [50])
                 y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
-    
+
             elif pos == 'Midfielder':
-                # multiple x + multiple y to spread them out
-                total_mf = needed_mf
-                
-                # pick the x from our x_ranges_mid dictionary
-                # fallback to [60] if the number isn't in the dictionary
-                x_candidate_list = x_ranges_mid.get(total_mf, [60])
-                if idx_pos < len(x_candidate_list):
-                    x_val = x_candidate_list[idx_pos]
-                else:
-                    x_val = 60  # fallback
-    
-                y_candidates = y_ranges['Midfielder'].get(total_mf, [30, 50, 70])
+                x_candidate_list = x_ranges_mid.get(needed_mf, [60])
+                x_val = x_candidate_list[idx_pos] if idx_pos < len(x_candidate_list) else 60
+
+                y_candidates = y_ranges['Midfielder'].get(needed_mf, [30, 50, 70])
                 y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
-    
-            elif pos == 'Forward':
+
+            else:  # Forward
                 x_val = x_positions['Forward']
-                total_fw = needed_fw
-                y_candidates = y_ranges['Forward'].get(total_fw, [50])
+                y_candidates = y_ranges['Forward'].get(needed_fw, [50])
                 y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
-    
+
             coordinates.append((x_val, y_val))
             pos_counters[pos] += 1
-    
+
         best_11_df = best_11_df.copy()
-        best_11_df["x"] = [coord[0] for coord in coordinates]
-        best_11_df["y"] = [coord[1] for coord in coordinates]
+        best_11_df["x"] = [c[0] for c in coordinates]
+        best_11_df["y"] = [c[1] for c in coordinates]
         return best_11_df
 
+    best_11 = assign_coordinates(best_11, formation_structure)
 
-    best_11 = assign_coordinates(best_11, selected_formation)
-
-    # For color coding behind each player:
+    # Color-coded circles based on position
     position_colors = {
-        "Goalkeeper": "#FF88FF",   # pink/purple
-        "Defender":   "#77DD77",   # light green
-        "Midfielder": "#87CEEB",   # light blue
-        "Forward":    "#FFA07A"    # light salmon
+        "Goalkeeper": "#FF88FF",
+        "Defender":   "#77DD77",
+        "Midfielder": "#87CEEB",
+        "Forward":    "#FFA07A"
     }
 
-    # Prepare pitch
-    pitch = Pitch(
-        pitch_type='statsbomb',
-        pitch_color='#2b2b2b',
-        line_color='white',
-        linewidth=2
-    )
-    fig, ax = pitch.draw(figsize=(18, 6))  # bigger figure for clarity
+    pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
+    fig, ax = pitch.draw(figsize=(12, 8))  # bigger pitch
 
-    # A small helper for loading + resizing images
     @st.cache_data(show_spinner=False)
-    def get_resized_player_image(url, width=60, height=80):
+    def get_resized_image(url, width=60, height=80):
         try:
-            response = requests.get(url)
-            response.raise_for_status()
-            img = Image.open(BytesIO(response.content))
+            resp = requests.get(url)
+            resp.raise_for_status()
+            img = Image.open(BytesIO(resp.content))
         except:
             img = Image.open(BytesIO(requests.get(
                 "https://via.placeholder.com/60x80.png?text=No+Image").content))
         return img.resize((width, height))
 
-    # Plot each player on the pitch
     for _, row in best_11.iterrows():
         x_pitch = (row['x'] / 100) * 120
-        y_pitch = (row['y'] / 100) * 70
+        y_pitch = (row['y'] / 100) * 80
 
-        # Circle behind the image to highlight position
         circle_color = position_colors.get(row['position'], "white")
-        circle_radius = 5  # tweak radius size as needed
         circle = plt.Circle(
-            (x_pitch, y_pitch), circle_radius,
-            color=circle_color, alpha=0.4
+            (x_pitch, y_pitch),
+            6,  # radius
+            color=circle_color,
+            alpha=0.4
         )
         ax.add_artist(circle)
 
-        # Fetch & place the player photo
-        img = get_resized_player_image(row['photo_url'], width=60, height=80)
+        # Load & place player image
+        img = get_resized_image(row['photo_url'], width=60, height=80)
         img_np = np.array(img)
-        imagebox = OffsetImage(img_np, zoom=0.5)
+        imagebox = OffsetImage(img_np, zoom=0.6)
         ab = AnnotationBbox(
             imagebox,
             (x_pitch, y_pitch),
@@ -857,17 +813,16 @@ def tab_best_xi(players_df, difficulty_df):
         )
         ax.add_artist(ab)
 
-        # Add text below or above the player image
-        # e.g., Player Name + short stats
+        # Add text above
         ax.text(
-            x_pitch, y_pitch + circle_radius + 3,
+            x_pitch, y_pitch + 8,
             f"{row['first_name']} {row['last_name']}",
             color="white", fontsize=8, ha="center", va="bottom"
         )
         ax.text(
-            x_pitch, y_pitch + circle_radius + 1,
+            x_pitch, y_pitch + 5,
             f"{row['club']} | {int(row['total_points'])} pts",
-            color="#FFD700", fontsize=7, ha="center", va="bottom"  # gold color for text
+            color="#FFD700", fontsize=7, ha="center", va="bottom"
         )
 
     st.pyplot(fig)
@@ -880,7 +835,6 @@ def tab_best_xi(players_df, difficulty_df):
     ]
     st.dataframe(best_11[columns_to_show].reset_index(drop=True))
 
-
 # ---------------------------------------------------------------------------
 # 5. MAIN APP
 # ---------------------------------------------------------------------------
@@ -891,13 +845,12 @@ if "players" not in st.session_state or st.session_state["players"].empty:
 hero_banner()
 instructions_expander()
 
-# Tabs (Ask Llama removed)
 tab_labels = [
     "Overview", 
     "Search Player", 
     "Compare Clubs", 
     "Compare Players",
-    "Best Players", 
+    "Best Players",
     "Advanced Explorer", 
     "Best XI"
 ]
