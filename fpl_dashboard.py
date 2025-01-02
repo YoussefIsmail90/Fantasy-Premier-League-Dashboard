@@ -772,7 +772,7 @@ def tab_best_xi(players_df, difficulty_df):
         line_color='white',
         linewidth=2
     )
-    fig, ax = pitch.draw(figsize=(12, 8))  # bigger figure for clarity
+    fig, ax = pitch.draw(figsize=(18, 6))  # bigger figure for clarity
 
     # A small helper for loading + resizing images
     @st.cache_data(show_spinner=False)
@@ -793,7 +793,7 @@ def tab_best_xi(players_df, difficulty_df):
 
         # Circle behind the image to highlight position
         circle_color = position_colors.get(row['position'], "white")
-        circle_radius = 6  # tweak radius size as needed
+        circle_radius = 5  # tweak radius size as needed
         circle = plt.Circle(
             (x_pitch, y_pitch), circle_radius,
             color=circle_color, alpha=0.4
@@ -801,7 +801,7 @@ def tab_best_xi(players_df, difficulty_df):
         ax.add_artist(circle)
 
         # Fetch & place the player photo
-        img = get_resized_player_image(row['photo_url'], width=60, height=80)
+        img = get_resized_player_image(row['photo_url'], width=60, height=70)
         img_np = np.array(img)
         imagebox = OffsetImage(img_np, zoom=0.6)
         ab = AnnotationBbox(
