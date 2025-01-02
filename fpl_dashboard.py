@@ -12,6 +12,7 @@ import logging
 import re
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 
 # ---------------------------------------------------------------------------
 # 1. PAGE & STYLE CONFIGURATION
