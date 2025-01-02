@@ -19,37 +19,45 @@ from huggingface_hub import InferenceClient
 # ---------------------------------------------------------------------------
 # 1. HUGGING FACE INTEGRATION
 # ---------------------------------------------------------------------------
-# Suppose you have your HF API key stored in [st.secrets["huggingface"]["api_key"]]
-# or as an environment variable. Adjust as needed.
 try:
     HF_API_KEY = st.secrets["huggingface"]["api_key"]
 except:
-    # Fallback if secrets not set, you can replace with your actual token:
-    HF_API_KEY = "REPLACE_ME_WITH_YOUR_TOKEN"
+    # Fallback if secrets not set, you can hardcode a token, but that isn't recommended for public repos.
+    HF_API_KEY = "REPLACE_WITH_YOUR_ACTUAL_TOKEN"
 
-# The collection you referenced: https://huggingface.co/collections/meta-llama/meta-llama-3-66214712577ca38149ebb2b6
-# We'll assume you are using a particular model from that collection.
-# For example: "meta-llama/Meta-Llama-3-8B-Instruct"
-# or "meta-llama-3-66214712577ca38149ebb2b6" if that's the exact name you have deployed.
-# Adjust as needed:
+# Example model from the meta-llama collection. Adjust as needed.
 llama_model = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 client = InferenceClient(api_key=HF_API_KEY)
 
 def ask_llama(prompt: str, max_tokens=1000) -> str:
     """
-    Simple function to send a user prompt to the Llama model 
-    and return the generated text.
+    Chat with the Llama model, restricted to FPL context:
+    We add a system message indicating it should only answer about FPL.
     """
+    # Restrict the model's domain by adding a "system" role message:
+    system_instructions = {
+        "role": "system",
+        "content": (
+            "You are a helpful assistant that knows about the Fantasy Premier League. "
+            "Please only provide answers related to FPL or Premier League football. "
+            "If the question is not relevant to FPL, kindly refuse."
+        )
+    }
+
+    # Then the user message:
+    user_message = {"role": "user", "content": prompt}
+
     try:
         response = client.chat_completion(
             model=llama_model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[system_instructions, user_message],
             max_tokens=max_tokens,
             stream=False
         )
         return response.choices[0].message['content']
     except Exception as e:
+        # Show the error in Streamlit
         st.error(f"Chatbot error: {e}")
         return "I'm sorry, I couldn't generate a response."
 
@@ -318,22 +326,17 @@ def compute_next_fixture_difficulty(clubs_df):
         "AwayDiff": "difficulty"
     }, inplace=True)
 
-    # Combine home and away fixtures
     combined_df = pd.concat([home_entries, away_entries], ignore_index=True)
 
-    # Sort by club and kickoff_time to prioritize earliest fixtures
+    # Sort by club and kickoff_time
     combined_df.sort_values(by=["club", "kickoff_time"], inplace=True)
-
-    # Drop duplicates, keeping first (earliest) fixture per club
     combined_df = combined_df.drop_duplicates(subset=["club"], keep='first')
 
-    # Rename columns
     combined_df.rename(columns={
         "difficulty": "club_next_difficulty",
         "opponent": "club_next_opponent"
     }, inplace=True)
 
-    # Keep columns
     combined_df = combined_df[["club", "club_next_difficulty", "club_next_opponent"]]
     return combined_df
 
@@ -348,7 +351,6 @@ def refresh_data():
     if not c_df.empty:
         difficulty_df = compute_next_fixture_difficulty(c_df)
     else:
-        # Ensure 'club_next_opponent' is in columns even if empty
         difficulty_df = pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
 
     st.session_state["raw_fpl_data"] = raw_data
@@ -390,7 +392,7 @@ def instructions_expander():
         - **Best Players**: Position-based top performers by advanced metrics.
         - **Advanced Explorer**: Pick any numeric columns for a custom scatter plot.
         - **Best XI**: Incorporates next fixture difficulty and opponent into the scoring formula (1-4-3-3 formation).
-        - **Ask Llama**: Interact with the Meta-Llama model.
+        - **Ask Llama**: Interact with the Meta-Llama model (about FPL).
 
         Enjoy exploring the data!
         """)
@@ -398,7 +400,6 @@ def instructions_expander():
 # ------------------ 5a. Overview ------------------
 def tab_overview(players_df):
     st.markdown("## Overview: Explore Top Performers by Your Preferred Metric")
-
     if players_df.empty:
         st.warning("No player data available.")
         return
@@ -510,7 +511,6 @@ def tab_team_comparison(players_df, clubs_df):
 # ------------------ 5d. Compare Players ------------------
 def tab_compare_players(players_df):
     st.markdown("## Compare Players")
-
     if players_df.empty:
         st.warning("No player data available.")
         return
@@ -653,16 +653,16 @@ def tab_best_xi(players_df, difficulty_df):
     """
     Allows users to select a formation, computes the Best XI,
     and visualizes it on a football pitch. 
-    Incorporates fixture difficulty + excludes suspended players.
+    Excludes suspended ('s') AND injured ('i') players.
     """
     st.markdown("## Best XI with Formation Selection")
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No player data or missing 'position' info.")
         return
 
-    # 1) EXCLUDE SUSPENDED PLAYERS
-    # If status=='s' => suspended, remove them.
-    players_df = players_df[players_df["status"] != "s"]
+    # -- EXCLUDE SUSPENDED + INJURED --
+    # 's' -> suspended, 'i' -> injured
+    players_df = players_df[~players_df["status"].isin(["s", "i"])]
 
     formations = {
         '1-4-3-3': {'Goalkeeper':1, 'Defender':4, 'Midfielder':3, 'Forward':3},
@@ -674,7 +674,6 @@ def tab_best_xi(players_df, difficulty_df):
     selected_formation = st.selectbox("Select Formation:", options=list(formations.keys()), index=0)
     formation_structure = formations[selected_formation]
 
-    # If difficulty is empty, fallback to default
     if difficulty_df.empty:
         players_df["club_next_difficulty"] = 3
         players_df["club_next_opponent"] = "Unknown"
@@ -763,7 +762,6 @@ def tab_best_xi(players_df, difficulty_df):
         except:
             return Image.open(BytesIO(requests.get("https://via.placeholder.com/60x80.png?text=No+Image").content))
 
-    # Plot pitch
     pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
     fig, ax = pitch.draw(figsize=(10, 6))
 
@@ -772,7 +770,6 @@ def tab_best_xi(players_df, difficulty_df):
         img = img.resize((60, 80)) 
         img_np = np.array(img)
 
-        # map x(0-100)->(0-120), y(0-100)->(0-80)
         x_pitch = (row['x'] / 100) * 120
         y_pitch = (row['y'] / 100) * 80
 
@@ -794,10 +791,10 @@ def tab_best_xi(players_df, difficulty_df):
 # ------------------ 5h. Ask Llama ------------------
 def tab_ask_llama():
     """
-    A simple tab to interact with the Meta-Llama model.
+    A simple tab to interact with the Meta-Llama model (restricted to FPL).
     """
     st.markdown("## Ask Llama")
-    st.write("Ask the Meta-Llama model any question, or have it analyze your data in a natural language prompt.")
+    st.write("Ask the Meta-Llama model any FPL-related question, or have it analyze your FPL data in natural language.")
 
     user_prompt = st.text_area("Enter your prompt for Llama here:")
     if st.button("Send Prompt"):
