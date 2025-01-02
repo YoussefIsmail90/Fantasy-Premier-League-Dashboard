@@ -710,94 +710,94 @@ def tab_best_xi(players_df, difficulty_df):
 
     # Assign coordinates
     def assign_coordinates(best_11_df, formation):
-    coordinates = []
-    pos_counters = {"Goalkeeper": 0, "Defender": 0, "Midfielder": 0, "Forward": 0}
-
-    # Single x positions for GK/DF/FWD
-    x_positions = {
-        'Goalkeeper': 5,
-        'Defender': 30,
-        'Forward': 75
-    }
+        coordinates = []
+        pos_counters = {"Goalkeeper": 0, "Defender": 0, "Midfielder": 0, "Forward": 0}
     
-    # For midfielders, let's create a dictionary keyed by how many midfielders we need
-    # and store a small range of X positions we can use.
-    # You can tweak these lists to your liking.
-    x_ranges_mid = {
-        3: [55, 60, 65],
-        4: [52, 57, 62, 67],
-        5: [50, 55, 60, 65, 70]
-    }
-
-    y_ranges = {
-        'Defender': {
-            3: [20, 40, 60],
-            4: [15, 30, 50, 65],
-            5: [10, 25, 40, 55, 70]
-        },
-        'Midfielder': {
-            3: [20, 50, 80],
-            4: [15, 35, 65, 85],
-            5: [10, 30, 50, 70, 90]
-        },
-        'Forward': {
-            1: [50],
-            2: [35, 65],
-            3: [30, 50, 70]
+        # Single x positions for GK/DF/FWD
+        x_positions = {
+            'Goalkeeper': 5,
+            'Defender': 30,
+            'Forward': 75
         }
-    }
-    
-    # figure out how many needed for each position from formation
-    needed_gk = formation.get('Goalkeeper', 1)
-    needed_df = formation.get('Defender', 4)
-    needed_mf = formation.get('Midfielder', 3)
-    needed_fw = formation.get('Forward', 3)
-
-    for _, row in best_11_df.iterrows():
-        pos = row['position']
-        idx_pos = pos_counters[pos]
         
-        if pos == 'Goalkeeper':
-            x_val = x_positions['Goalkeeper']
-            # spread GKs in y if needed, e.g. if you had 2 keepers at once
-            y_candidates = [50]  # single value for 1 GK
-            y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
-
-        elif pos == 'Defender':
-            # single x for defenders, multiple y
-            x_val = x_positions['Defender']
-            total_df = needed_df
-            y_candidates = y_ranges['Defender'].get(total_df, [50])
-            y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
-
-        elif pos == 'Midfielder':
-            # multiple x + multiple y to spread them out
-            total_mf = needed_mf
+        # For midfielders, let's create a dictionary keyed by how many midfielders we need
+        # and store a small range of X positions we can use.
+        # You can tweak these lists to your liking.
+        x_ranges_mid = {
+            3: [55, 60, 65],
+            4: [52, 57, 62, 67],
+            5: [50, 55, 60, 65, 70]
+        }
+    
+        y_ranges = {
+            'Defender': {
+                3: [20, 40, 60],
+                4: [15, 30, 50, 65],
+                5: [10, 25, 40, 55, 70]
+            },
+            'Midfielder': {
+                3: [20, 50, 80],
+                4: [15, 35, 65, 85],
+                5: [10, 30, 50, 70, 90]
+            },
+            'Forward': {
+                1: [50],
+                2: [35, 65],
+                3: [30, 50, 70]
+            }
+        }
+        
+        # figure out how many needed for each position from formation
+        needed_gk = formation.get('Goalkeeper', 1)
+        needed_df = formation.get('Defender', 4)
+        needed_mf = formation.get('Midfielder', 3)
+        needed_fw = formation.get('Forward', 3)
+    
+        for _, row in best_11_df.iterrows():
+            pos = row['position']
+            idx_pos = pos_counters[pos]
             
-            # pick the x from our x_ranges_mid dictionary
-            # fallback to [60] if the number isn't in the dictionary
-            x_candidate_list = x_ranges_mid.get(total_mf, [60])
-            if idx_pos < len(x_candidate_list):
-                x_val = x_candidate_list[idx_pos]
-            else:
-                x_val = 60  # fallback
-
-            y_candidates = y_ranges['Midfielder'].get(total_mf, [30, 50, 70])
-            y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
-
-        elif pos == 'Forward':
-            x_val = x_positions['Forward']
-            total_fw = needed_fw
-            y_candidates = y_ranges['Forward'].get(total_fw, [50])
-            y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
-
-        coordinates.append((x_val, y_val))
-        pos_counters[pos] += 1
-
-    best_11_df = best_11_df.copy()
-    best_11_df["x"] = [coord[0] for coord in coordinates]
-    best_11_df["y"] = [coord[1] for coord in coordinates]
-    return best_11_df
+            if pos == 'Goalkeeper':
+                x_val = x_positions['Goalkeeper']
+                # spread GKs in y if needed, e.g. if you had 2 keepers at once
+                y_candidates = [50]  # single value for 1 GK
+                y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
+    
+            elif pos == 'Defender':
+                # single x for defenders, multiple y
+                x_val = x_positions['Defender']
+                total_df = needed_df
+                y_candidates = y_ranges['Defender'].get(total_df, [50])
+                y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
+    
+            elif pos == 'Midfielder':
+                # multiple x + multiple y to spread them out
+                total_mf = needed_mf
+                
+                # pick the x from our x_ranges_mid dictionary
+                # fallback to [60] if the number isn't in the dictionary
+                x_candidate_list = x_ranges_mid.get(total_mf, [60])
+                if idx_pos < len(x_candidate_list):
+                    x_val = x_candidate_list[idx_pos]
+                else:
+                    x_val = 60  # fallback
+    
+                y_candidates = y_ranges['Midfielder'].get(total_mf, [30, 50, 70])
+                y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
+    
+            elif pos == 'Forward':
+                x_val = x_positions['Forward']
+                total_fw = needed_fw
+                y_candidates = y_ranges['Forward'].get(total_fw, [50])
+                y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
+    
+            coordinates.append((x_val, y_val))
+            pos_counters[pos] += 1
+    
+        best_11_df = best_11_df.copy()
+        best_11_df["x"] = [coord[0] for coord in coordinates]
+        best_11_df["y"] = [coord[1] for coord in coordinates]
+        return best_11_df
 
 
     best_11 = assign_coordinates(best_11, selected_formation)
