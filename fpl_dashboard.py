@@ -718,7 +718,7 @@ def tab_best_xi(players_df, difficulty_df):
             'Midfielder': {
                 3: [20, 50, 80],
                 4: [15, 40, 60, 85],
-                5: [10, 25, 50, 75, 90]
+                5: [10, 25, 40, 55, 80]
             },
             'Forward': {
                 1: [50],
