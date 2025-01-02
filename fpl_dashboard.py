@@ -756,7 +756,7 @@ def tab_best_xi(players_df, difficulty_df):
     # Enhanced pitch visualization
     from mplsoccer import Pitch
     pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
-    fig, ax = pitch.draw(figsize=(12, 8))
+    fig, ax = pitch.draw(figsize=(13, 9))
 
     # color per position
     pos_colors = {
