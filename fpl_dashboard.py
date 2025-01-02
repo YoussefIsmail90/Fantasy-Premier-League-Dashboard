@@ -615,6 +615,7 @@ def tab_best_xi(players_df, difficulty_df):
     players_df = players_df[~players_df["status"].isin(["s", "i"])]
 
     formations = {
+        '1-3-5-2': {'Goalkeeper':1, 'Defender':3, 'Midfielder':5, 'Forward':2},
         '1-4-3-3': {'Goalkeeper':1, 'Defender':4, 'Midfielder':3, 'Forward':3},
         '1-4-4-2': {'Goalkeeper':1, 'Defender':4, 'Midfielder':4, 'Forward':2},
         '1-5-3-2': {'Goalkeeper':1, 'Defender':5, 'Midfielder':3, 'Forward':2},
