@@ -715,7 +715,7 @@ def tab_best_xi(players_df, difficulty_df):
         x_positions = {
             'Goalkeeper': 5,
             'Defender': 30,
-            'Midfielder': 50,
+            'Midfielder': 80,
             'Forward': 70
         }
         y_ranges = {
