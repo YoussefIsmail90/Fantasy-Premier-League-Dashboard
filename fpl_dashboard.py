@@ -643,7 +643,12 @@ def tab_advanced(players_df):
 
 # ------------------ 4g. Best XI (Enhanced Visualization & No Midfielder Clustering) ------------------
 def tab_best_xi(players_df, difficulty_df):
-    st.markdown("## Best XI with Formation Selection")
+    """
+    Enhanced Best XI that uses a grid-based approach for spacing:
+    1) Each position gets a distinct x-value.
+    2) Y values for each position are equally spaced between y_min and y_max.
+    """
+    st.markdown("## Best XI with Grid-Based Spacing")
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No player data or missing 'position' info.")
         return
@@ -651,19 +656,16 @@ def tab_best_xi(players_df, difficulty_df):
     # Exclude suspended + injured
     players_df = players_df[~players_df["status"].isin(["s", "i"])]
 
-    # Define formations
+    # Simple formations
     formations = {
         '1-3-5-2': {'Goalkeeper':1, 'Defender':3, 'Midfielder':5, 'Forward':2},
         '1-4-3-3': {'Goalkeeper':1, 'Defender':4, 'Midfielder':3, 'Forward':3},
         '1-4-4-2': {'Goalkeeper':1, 'Defender':4, 'Midfielder':4, 'Forward':2},
-        '1-5-3-2': {'Goalkeeper':1, 'Defender':5, 'Midfielder':3, 'Forward':2},
-        '1-5-4-1': {'Goalkeeper':1, 'Defender':5, 'Midfielder':4, 'Forward':1},
-        '1-4-5-1': {'Goalkeeper':1, 'Defender':4, 'Midfielder':5, 'Forward':1},
     }
     selected_formation = st.selectbox("Select Formation:", list(formations.keys()), index=0)
     formation_structure = formations[selected_formation]
 
-    # Merge difficulty data
+    # If no difficulty data, fallback
     if difficulty_df.empty:
         players_df["club_next_difficulty"] = 3
         players_df["club_next_opponent"] = "Unknown"
@@ -672,153 +674,135 @@ def tab_best_xi(players_df, difficulty_df):
         players_df["club_next_difficulty"] = players_df["club_next_difficulty"].fillna(3)
         players_df["club_next_opponent"] = players_df["club_next_opponent"].fillna("Unknown")
 
-    # Weighted formula
+    # Score formula
     players_df["score_for_best_xi"] = (
         players_df["total_points"]
         + 1.5 * players_df["form"]
         + 3.0 / players_df["club_next_difficulty"]
     )
 
-    def pick_top_n(position, n):
-        subset = players_df[players_df["position"] == position]
-        return subset.sort_values("score_for_best_xi", ascending=False).head(n)
+    # Helper
+    def pick_top_n(df, pos, n):
+        return df[df["position"] == pos].sort_values("score_for_best_xi", ascending=False).head(n)
 
+    # Gather best players by formation
     selected_players = []
     for pos, count in formation_structure.items():
-        top_p = pick_top_n(pos, count)
-        if len(top_p) < count:
-            st.warning(f"Not enough {pos} available. Needed {count}, found {len(top_p)}.")
-        selected_players.append(top_p)
-
+        picked = pick_top_n(players_df, pos, count)
+        if len(picked) < count:
+            st.warning(f"Not enough {pos}. Needed {count}, found {len(picked)}.")
+        selected_players.append(picked)
     best_11 = pd.concat(selected_players, ignore_index=True)
 
-    # New approach: Use x-ranges for midfielders to avoid crowding
-    def assign_coordinates(best_11_df, formation):
-        coordinates = []
-        pos_counters = {"Goalkeeper": 0, "Defender": 0, "Midfielder": 0, "Forward": 0}
+    # ---------- The important part: spread players in a grid ----------
 
-        x_positions = {
-            'Goalkeeper': 5,
-            'Defender': 30,
-            'Forward': 75  # shift forward to the right
-        }
-        # For midfielders, define multiple x coordinates for 3,4,5 midfielders
-        x_ranges_mid = {
-            3: [50, 55, 60],
-            4: [48, 54, 60, 66],
-            5: [45, 52, 59, 66, 73]
-        }
+    # Distinct x columns for each position (0-100 scale)
+    position_x = {
+        "Goalkeeper": 10,
+        "Defender":   25,
+        "Midfielder": 50,
+        "Forward":    75
+    }
+    # For each position, define the y_min, y_max range you want.
+    # For instance, defenders from 10..90 so if there are 4 defenders, they'll be y=10, 36.7, 63.3, 90
+    position_y_range = {
+        "Goalkeeper": (50, 50),  # only 1 GK (y=50)
+        "Defender":   (10, 90),
+        "Midfielder": (5, 95),
+        "Forward":    (30, 70)
+    }
 
-        y_ranges = {
-            'Defender': {
-                3: [20, 40, 60],
-                4: [15, 30, 50, 65],
-                5: [10, 25, 40, 55, 70]
-            },
-            'Midfielder': {
-                3: [20, 50, 80],
-                4: [15, 40, 60, 85],
-                5: [10, 25, 40, 55, 70]
-            },
-            'Forward': {
-                1: [50],
-                2: [35, 65],
-                3: [30, 50, 70]
-            }
-        }
+    def spread_positions(count, y_min, y_max):
+        """
+        Return a list of 'count' y-values, evenly spaced between y_min and y_max (inclusive).
+        If count=1, just return [ (y_min+y_max)/2 ].
+        """
+        if count == 1:
+            return [(y_min + y_max)/2]
+        step = (y_max - y_min) / (count - 1)
+        return [y_min + i*step for i in range(count)]
 
-        needed_df = formation.get('Defender', 4)
-        needed_mf = formation.get('Midfielder', 3)
-        needed_fw = formation.get('Forward', 3)
+    # Assign x,y to each row
+    def assign_coordinates(df):
+        coords = []
+        # Group by position so we can handle each group
+        grouped = df.groupby("position", sort=False)
+        new_df = df.copy()
 
-        for _, row in best_11_df.iterrows():
-            pos = row['position']
-            idx_pos = pos_counters[pos]
+        for pos, group in grouped:
+            # how many players for this position
+            count_pos = len(group)
+            x_val = position_x.get(pos, 50)  # fallback x=50
+            y_min, y_max = position_y_range.get(pos, (40, 60))
 
-            if pos == 'Goalkeeper':
-                x_val = x_positions['Goalkeeper']
-                y_val = 50  # single GK in the middle
+            # get spaced y values
+            y_vals = spread_positions(count_pos, y_min, y_max)
 
-            elif pos == 'Defender':
-                x_val = x_positions['Defender']
-                y_candidates = y_ranges['Defender'].get(needed_df, [50])
-                y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
+            # Now assign each row in 'group' a unique y
+            i = 0
+            for idx in group.index:
+                coords.append((idx, x_val, y_vals[i]))
+                i += 1
 
-            elif pos == 'Midfielder':
-                x_candidate_list = x_ranges_mid.get(needed_mf, [60])
-                x_val = x_candidate_list[idx_pos] if idx_pos < len(x_candidate_list) else 60
+        # coords is a list of (df_index, x, y)
+        for idx, x_val, y_val in coords:
+            new_df.at[idx, "x"] = x_val
+            new_df.at[idx, "y"] = y_val
+        return new_df
 
-                y_candidates = y_ranges['Midfielder'].get(needed_mf, [30, 50, 70])
-                y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
+    best_11 = assign_coordinates(best_11)
 
-            else:  # Forward
-                x_val = x_positions['Forward']
-                y_candidates = y_ranges['Forward'].get(needed_fw, [50])
-                y_val = y_candidates[idx_pos] if idx_pos < len(y_candidates) else 50
+    # ------------------------------------------------
+    # Enhanced pitch visualization
+    from mplsoccer import Pitch
+    pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
+    fig, ax = pitch.draw(figsize=(12, 8))
 
-            coordinates.append((x_val, y_val))
-            pos_counters[pos] += 1
-
-        best_11_df = best_11_df.copy()
-        best_11_df["x"] = [c[0] for c in coordinates]
-        best_11_df["y"] = [c[1] for c in coordinates]
-        return best_11_df
-
-    best_11 = assign_coordinates(best_11, formation_structure)
-
-    # Color-coded circles based on position
-    position_colors = {
+    # color per position
+    pos_colors = {
         "Goalkeeper": "#FF88FF",
         "Defender":   "#77DD77",
         "Midfielder": "#87CEEB",
         "Forward":    "#FFA07A"
     }
 
-    pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
-    fig, ax = pitch.draw(figsize=(12, 8))  # bigger pitch
-
+    # Helper to get + resize images
     @st.cache_data(show_spinner=False)
-    def get_resized_image(url, width=60, height=80):
+    def get_resized_image(url, w=60, h=80):
         try:
             resp = requests.get(url)
             resp.raise_for_status()
             img = Image.open(BytesIO(resp.content))
         except:
-            img = Image.open(BytesIO(requests.get(
-                "https://via.placeholder.com/60x80.png?text=No+Image").content))
-        return img.resize((width, height))
+            fallback = "https://via.placeholder.com/60x80.png?text=No+Image"
+            resp = requests.get(fallback)
+            img = Image.open(BytesIO(resp.content))
+        return img.resize((w, h))
 
     for _, row in best_11.iterrows():
-        x_pitch = (row['x'] / 100) * 120
-        y_pitch = (row['y'] / 100) * 80
+        # Convert 0-100 to 0-120 (x), 0-80 (y) for mplsoccer
+        x_pitch = (row["x"] / 100) * 120
+        y_pitch = (row["y"] / 100) * 80
 
-        circle_color = position_colors.get(row['position'], "white")
-        circle = plt.Circle(
-            (x_pitch, y_pitch),
-            6,  # radius
-            color=circle_color,
-            alpha=0.4
-        )
+        # circle behind
+        circle_color = pos_colors.get(row["position"], "white")
+        circle = plt.Circle((x_pitch, y_pitch), radius=6, color=circle_color, alpha=0.4)
         ax.add_artist(circle)
 
-        # Load & place player image
-        img = get_resized_image(row['photo_url'], width=60, height=80)
+        # player image
+        img = get_resized_image(row["photo_url"], w=60, h=80)
         img_np = np.array(img)
         imagebox = OffsetImage(img_np, zoom=0.6)
-        ab = AnnotationBbox(
-            imagebox,
-            (x_pitch, y_pitch),
-            frameon=False,
-            box_alignment=(0.5, 0.5)
-        )
+        ab = AnnotationBbox(imagebox, (x_pitch, y_pitch), frameon=False, box_alignment=(0.5,0.5))
         ax.add_artist(ab)
 
-        # Add text above
+        # text above
         ax.text(
             x_pitch, y_pitch + 8,
             f"{row['first_name']} {row['last_name']}",
             color="white", fontsize=8, ha="center", va="bottom"
         )
+        # club + points
         ax.text(
             x_pitch, y_pitch + 5,
             f"{row['club']} | {int(row['total_points'])} pts",
@@ -828,12 +812,13 @@ def tab_best_xi(players_df, difficulty_df):
     st.pyplot(fig)
 
     st.write("### Detailed Best XI Table")
-    columns_to_show = [
-        "first_name", "last_name", "club", "position", "status",
-        "total_points", "form", "club_next_difficulty", "club_next_opponent",
+    show_cols = [
+        "first_name", "last_name", "position", "club", "status",
+        "total_points", "form", "club_next_opponent", "club_next_difficulty",
         "score_for_best_xi", "goals_scored", "assists", "clean_sheets", "cost"
     ]
-    st.dataframe(best_11[columns_to_show].reset_index(drop=True))
+    st.dataframe(best_11[show_cols].reset_index(drop=True))
+
 
 # ---------------------------------------------------------------------------
 # 5. MAIN APP
