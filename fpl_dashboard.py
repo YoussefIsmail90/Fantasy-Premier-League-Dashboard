@@ -13,56 +13,8 @@ import re
 import numpy as np
 import plotly.express as px
 
-# For Llama integration
-from huggingface_hub import InferenceClient
-
 # ---------------------------------------------------------------------------
-# 1. HUGGING FACE INTEGRATION
-# ---------------------------------------------------------------------------
-try:
-    HF_API_KEY = st.secrets["huggingface"]["api_key"]
-except:
-    # Fallback if secrets not set, you can hardcode a token, but that isn't recommended for public repos.
-    HF_API_KEY = "REPLACE_WITH_YOUR_ACTUAL_TOKEN"
-
-# Example model from the meta-llama collection. Adjust as needed.
-llama_model = "meta-llama/Meta-Llama-3-8B-Instruct"
-
-client = InferenceClient(api_key=HF_API_KEY)
-
-def ask_llama(prompt: str, max_tokens=1000) -> str:
-    """
-    Chat with the Llama model, restricted to FPL context:
-    We add a system message indicating it should only answer about FPL.
-    """
-    # Restrict the model's domain by adding a "system" role message:
-    system_instructions = {
-        "role": "system",
-        "content": (
-            "You are a helpful assistant that knows about the Fantasy Premier League. "
-            "Please only provide answers related to FPL or Premier League football. "
-            "If the question is not relevant to FPL, kindly refuse."
-        )
-    }
-
-    # Then the user message:
-    user_message = {"role": "user", "content": prompt}
-
-    try:
-        response = client.chat_completion(
-            model=llama_model,
-            messages=[system_instructions, user_message],
-            max_tokens=max_tokens,
-            stream=False
-        )
-        return response.choices[0].message['content']
-    except Exception as e:
-        # Show the error in Streamlit
-        st.error(f"Chatbot error: {e}")
-        return "I'm sorry, I couldn't generate a response."
-
-# ---------------------------------------------------------------------------
-# 2. PAGE & STYLE CONFIGURATION
+# 1. PAGE & STYLE CONFIGURATION
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="Premier League Next-Gen",
@@ -153,7 +105,7 @@ hr {
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# 3. SESSION STATE SETUP
+# 2. SESSION STATE SETUP
 # ---------------------------------------------------------------------------
 if "raw_fpl_data" not in st.session_state:
     st.session_state["raw_fpl_data"] = {}
@@ -165,7 +117,7 @@ if "club_difficulty" not in st.session_state:
     st.session_state["club_difficulty"] = pd.DataFrame()
 
 # ---------------------------------------------------------------------------
-# 4. DATA FETCHING & PREPARATION
+# 3. DATA FETCHING & PREPARATION
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=60 * 60)
 def fetch_fpl_data():
@@ -358,7 +310,7 @@ def refresh_data():
     st.session_state["club_difficulty"] = difficulty_df
 
 # ---------------------------------------------------------------------------
-# 5. PAGE SECTIONS / TABS
+# 4. PAGE SECTIONS / TABS
 # ---------------------------------------------------------------------------
 def hero_banner():
     st.markdown(
@@ -391,13 +343,12 @@ def instructions_expander():
         - **Compare Players**: Compare multiple players side by side (with photos and a chart).
         - **Best Players**: Position-based top performers by advanced metrics.
         - **Advanced Explorer**: Pick any numeric columns for a custom scatter plot.
-        - **Best XI**: Incorporates next fixture difficulty and opponent into the scoring formula (1-4-3-3 formation).
-        - **Ask Llama**: Interact with the Meta-Llama model (about FPL).
-
+        - **Best XI**: Incorporates next fixture difficulty and opponent into the scoring formula.
+        
         Enjoy exploring the data!
         """)
 
-# ------------------ 5a. Overview ------------------
+# ------------------ 4a. Overview ------------------
 def tab_overview(players_df):
     st.markdown("## Overview: Explore Top Performers by Your Preferred Metric")
     if players_df.empty:
@@ -439,7 +390,7 @@ def tab_overview(players_df):
         height=600
     )
 
-# ------------------ 5b. Search Player ------------------
+# ------------------ 4b. Search Player ------------------
 def tab_search_player(players_df):
     st.markdown("## Search for a Player")
     if players_df.empty:
@@ -470,7 +421,7 @@ def tab_search_player(players_df):
                     st.write(f"**Popularity**: {row['popularity']}%")
                 st.markdown("---")
 
-# ------------------ 5c. Compare Clubs ------------------
+# ------------------ 4c. Compare Clubs ------------------
 def tab_team_comparison(players_df, clubs_df):
     st.markdown("## Compare Two Clubs")
     if players_df.empty or clubs_df.empty:
@@ -508,7 +459,7 @@ def tab_team_comparison(players_df, clubs_df):
         fig.update_layout(template="plotly_dark")
         st.plotly_chart(fig)
 
-# ------------------ 5d. Compare Players ------------------
+# ------------------ 4d. Compare Players ------------------
 def tab_compare_players(players_df):
     st.markdown("## Compare Players")
     if players_df.empty:
@@ -573,7 +524,7 @@ def tab_compare_players(players_df):
     fig_comp.update_layout(legend_title_text="Players")
     st.plotly_chart(fig_comp)
 
-# ------------------ 5e. Best Players ------------------
+# ------------------ 4e. Best Players ------------------
 def tab_best_players(players_df):
     st.markdown("## Best Players by Position")
     if players_df.empty or "position" not in players_df.columns:
@@ -611,7 +562,7 @@ def tab_best_players(players_df):
 
     st.dataframe(top_10[["first_name", "last_name", "club", "position"] + relevant_metrics])
 
-# ------------------ 5f. Advanced Explorer ------------------
+# ------------------ 4f. Advanced Explorer ------------------
 def tab_advanced(players_df):
     st.markdown("## Advanced Explorer (Scatter Plot)")
     if players_df.empty:
@@ -648,7 +599,7 @@ def tab_advanced(players_df):
     fig.update_layout(title=f"{x_metric.replace('_', ' ').title()} vs {y_metric.replace('_', ' ').title()}")
     st.plotly_chart(fig)
 
-# ------------------ 5g. Best XI ------------------
+# ------------------ 4g. Best XI ------------------
 def tab_best_xi(players_df, difficulty_df):
     """
     Allows users to select a formation, computes the Best XI,
@@ -660,8 +611,7 @@ def tab_best_xi(players_df, difficulty_df):
         st.warning("No player data or missing 'position' info.")
         return
 
-    # -- EXCLUDE SUSPENDED + INJURED --
-    # 's' -> suspended, 'i' -> injured
+    # Exclude suspended + injured
     players_df = players_df[~players_df["status"].isin(["s", "i"])]
 
     formations = {
@@ -686,7 +636,7 @@ def tab_best_xi(players_df, difficulty_df):
     players_df["score_for_best_xi"] = (
         players_df["total_points"]
         + 1.5 * players_df["form"]
-        + 3.0 / players_df["club_next_difficulty"]  # inversely depends on difficulty
+        + 3.0 / players_df["club_next_difficulty"]
     )
 
     def pick_top_n(position, n):
@@ -788,23 +738,8 @@ def tab_best_xi(players_df, difficulty_df):
     ]
     st.dataframe(best_11[columns_to_show].reset_index(drop=True))
 
-# ------------------ 5h. Ask Llama ------------------
-def tab_ask_llama():
-    """
-    A simple tab to interact with the Meta-Llama model (restricted to FPL).
-    """
-    st.markdown("## Ask Llama")
-    st.write("Ask the Meta-Llama model any FPL-related question, or have it analyze your FPL data in natural language.")
-
-    user_prompt = st.text_area("Enter your prompt for Llama here:")
-    if st.button("Send Prompt"):
-        with st.spinner("Thinking..."):
-            response = ask_llama(user_prompt, max_tokens=600)
-        st.write("### Response:")
-        st.write(response)
-
 # ---------------------------------------------------------------------------
-# 6. MAIN APP
+# 5. MAIN APP
 # ---------------------------------------------------------------------------
 if "players" not in st.session_state or st.session_state["players"].empty:
     with st.spinner("Fetching and processing data..."):
@@ -813,6 +748,7 @@ if "players" not in st.session_state or st.session_state["players"].empty:
 hero_banner()
 instructions_expander()
 
+# Tabs (Ask Llama removed)
 tab_labels = [
     "Overview", 
     "Search Player", 
@@ -820,8 +756,7 @@ tab_labels = [
     "Compare Players",
     "Best Players", 
     "Advanced Explorer", 
-    "Best XI",
-    "Ask Llama"  # new tab for your AI model
+    "Best XI"
 ]
 tabs = st.tabs(tab_labels)
 
@@ -839,8 +774,6 @@ with tabs[5]:
     tab_advanced(st.session_state["players"])
 with tabs[6]:
     tab_best_xi(st.session_state["players"], st.session_state["club_difficulty"])
-with tabs[7]:
-    tab_ask_llama()
 
 # Floating Refresh Button
 st.markdown(
