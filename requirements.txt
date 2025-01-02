@@ -3,3 +3,4 @@ pandas==2.2.2
 plotly==5.23.0
 matplotlib>=3.9.1
 mplsoccer
+huggingface_hub
