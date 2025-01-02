@@ -653,7 +653,7 @@ def tab_advanced(players_df):
 def tab_best_xi(players_df, difficulty_df):
     """
     Allows users to select a formation, computes the Best XI,
-    and visualizes it on a football pitch. 
+    and visualizes it on a football pitch with images + enhanced styling.
     Excludes suspended ('s') AND injured ('i') players.
     """
     st.markdown("## Best XI with Formation Selection")
@@ -675,6 +675,7 @@ def tab_best_xi(players_df, difficulty_df):
     selected_formation = st.selectbox("Select Formation:", options=list(formations.keys()), index=0)
     formation_structure = formations[selected_formation]
 
+    # Merge in fixture difficulty if available
     if difficulty_df.empty:
         players_df["club_next_difficulty"] = 3
         players_df["club_next_opponent"] = "Unknown"
@@ -683,13 +684,14 @@ def tab_best_xi(players_df, difficulty_df):
         players_df["club_next_difficulty"] = players_df["club_next_difficulty"].fillna(3)
         players_df["club_next_opponent"] = players_df["club_next_opponent"].fillna("Unknown")
 
-    # Weighted formula for picking best XI
+    # Score formula
     players_df["score_for_best_xi"] = (
         players_df["total_points"]
         + 1.5 * players_df["form"]
         + 3.0 / players_df["club_next_difficulty"]
     )
 
+    # Helper to pick top N for each position
     def pick_top_n(position, n):
         subset = players_df[players_df["position"] == position]
         return subset.sort_values("score_for_best_xi", ascending=False).head(n)
@@ -698,11 +700,15 @@ def tab_best_xi(players_df, difficulty_df):
     for pos, count in formation_structure.items():
         top_players = pick_top_n(pos, count)
         if len(top_players) < count:
-            st.warning(f"Not enough players available for position: {pos}. Needed {count}, found {len(top_players)}.")
+            st.warning(
+                f"Not enough players available for position: {pos}. "
+                f"Needed {count}, found {len(top_players)}."
+            )
         selected_players.append(top_players)
 
     best_11 = pd.concat(selected_players, ignore_index=True)
 
+    # Assign coordinates
     def assign_coordinates(best_11_df, formation):
         coordinates = []
         pos_counters = {"Goalkeeper": 0, "Defender": 0, "Midfielder": 0, "Forward": 0}
@@ -738,11 +744,9 @@ def tab_best_xi(players_df, difficulty_df):
             else:
                 total = formation_structure[pos]
                 y_candidates = y_ranges.get(pos, {}).get(total, [50])
-                if count < len(y_candidates):
-                    y = y_candidates[count]
-                else:
-                    y = 50
+                y = y_candidates[count] if count < len(y_candidates) else 50
                 x = x_positions[pos]
+
             coordinates.append((x, y))
             pos_counters[pos] += 1
 
@@ -753,41 +757,84 @@ def tab_best_xi(players_df, difficulty_df):
 
     best_11 = assign_coordinates(best_11, selected_formation)
 
+    # For color coding behind each player:
+    position_colors = {
+        "Goalkeeper": "#FF88FF",   # pink/purple
+        "Defender":   "#77DD77",   # light green
+        "Midfielder": "#87CEEB",   # light blue
+        "Forward":    "#FFA07A"    # light salmon
+    }
+
+    # Prepare pitch
+    pitch = Pitch(
+        pitch_type='statsbomb',
+        pitch_color='#2b2b2b',
+        line_color='white',
+        linewidth=2
+    )
+    fig, ax = pitch.draw(figsize=(12, 8))  # bigger figure for clarity
+
+    # A small helper for loading + resizing images
     @st.cache_data(show_spinner=False)
-    def get_player_image(url):
+    def get_resized_player_image(url, width=60, height=80):
         try:
             response = requests.get(url)
             response.raise_for_status()
             img = Image.open(BytesIO(response.content))
-            return img
         except:
-            return Image.open(BytesIO(requests.get("https://via.placeholder.com/60x80.png?text=No+Image").content))
+            img = Image.open(BytesIO(requests.get(
+                "https://via.placeholder.com/60x80.png?text=No+Image").content))
+        return img.resize((width, height))
 
-    pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
-    fig, ax = pitch.draw(figsize=(10, 6))
-
-    for idx, row in best_11.iterrows():
-        img = get_player_image(row['photo_url'])
-        img = img.resize((60, 80)) 
-        img_np = np.array(img)
-
+    # Plot each player on the pitch
+    for _, row in best_11.iterrows():
         x_pitch = (row['x'] / 100) * 120
         y_pitch = (row['y'] / 100) * 80
 
+        # Circle behind the image to highlight position
+        circle_color = position_colors.get(row['position'], "white")
+        circle_radius = 6  # tweak radius size as needed
+        circle = plt.Circle(
+            (x_pitch, y_pitch), circle_radius,
+            color=circle_color, alpha=0.4
+        )
+        ax.add_artist(circle)
+
+        # Fetch & place the player photo
+        img = get_resized_player_image(row['photo_url'], width=60, height=80)
+        img_np = np.array(img)
         imagebox = OffsetImage(img_np, zoom=0.6)
-        ab = AnnotationBbox(imagebox, (x_pitch, y_pitch),
-                            frameon=False, box_alignment=(0.5, 0.5))
+        ab = AnnotationBbox(
+            imagebox,
+            (x_pitch, y_pitch),
+            frameon=False,
+            box_alignment=(0.5, 0.5)
+        )
         ax.add_artist(ab)
+
+        # Add text below or above the player image
+        # e.g., Player Name + short stats
+        ax.text(
+            x_pitch, y_pitch + circle_radius + 3,
+            f"{row['first_name']} {row['last_name']}",
+            color="white", fontsize=8, ha="center", va="bottom"
+        )
+        ax.text(
+            x_pitch, y_pitch + circle_radius + 1,
+            f"{row['club']} | {int(row['total_points'])} pts",
+            color="#FFD700", fontsize=7, ha="center", va="bottom"  # gold color for text
+        )
 
     st.pyplot(fig)
 
     st.write("### Detailed Best XI Table")
     columns_to_show = [
-        "first_name", "last_name", "club", "position", "status", 
-        "total_points", "form", "club_next_difficulty", "club_next_opponent", 
+        "first_name", "last_name", "club", "position", "status",
+        "total_points", "form", "club_next_difficulty", "club_next_opponent",
         "score_for_best_xi", "goals_scored", "assists", "clean_sheets", "cost"
     ]
     st.dataframe(best_11[columns_to_show].reset_index(drop=True))
+
 
 # ---------------------------------------------------------------------------
 # 5. MAIN APP
