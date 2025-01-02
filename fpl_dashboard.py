@@ -13,10 +13,49 @@ import re
 import numpy as np
 import plotly.express as px
 
+# For Llama integration
+from huggingface_hub import InferenceClient
 
-# ------------------------------------------------------------------------------
-# 1. PAGE & STYLE CONFIGURATION
-# ------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 1. HUGGING FACE INTEGRATION
+# ---------------------------------------------------------------------------
+# Suppose you have your HF API key stored in [st.secrets["huggingface"]["api_key"]]
+# or as an environment variable. Adjust as needed.
+try:
+    HF_API_KEY = st.secrets["huggingface"]["api_key"]
+except:
+    # Fallback if secrets not set, you can replace with your actual token:
+    HF_API_KEY = "REPLACE_ME_WITH_YOUR_TOKEN"
+
+# The collection you referenced: https://huggingface.co/collections/meta-llama/meta-llama-3-66214712577ca38149ebb2b6
+# We'll assume you are using a particular model from that collection.
+# For example: "meta-llama/Meta-Llama-3-8B-Instruct"
+# or "meta-llama-3-66214712577ca38149ebb2b6" if that's the exact name you have deployed.
+# Adjust as needed:
+llama_model = "meta-llama/Meta-Llama-3-8B-Instruct"
+
+client = InferenceClient(api_key=HF_API_KEY)
+
+def ask_llama(prompt: str, max_tokens=1000) -> str:
+    """
+    Simple function to send a user prompt to the Llama model 
+    and return the generated text.
+    """
+    try:
+        response = client.chat_completion(
+            model=llama_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            stream=False
+        )
+        return response.choices[0].message['content']
+    except Exception as e:
+        st.error(f"Chatbot error: {e}")
+        return "I'm sorry, I couldn't generate a response."
+
+# ---------------------------------------------------------------------------
+# 2. PAGE & STYLE CONFIGURATION
+# ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="Premier League Next-Gen",
     layout="wide",
@@ -105,9 +144,9 @@ hr {
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-# ------------------------------------------------------------------------------
-# 2. SESSION STATE SETUP
-# ------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 3. SESSION STATE SETUP
+# ---------------------------------------------------------------------------
 if "raw_fpl_data" not in st.session_state:
     st.session_state["raw_fpl_data"] = {}
 if "players" not in st.session_state:
@@ -117,9 +156,9 @@ if "clubs" not in st.session_state:
 if "club_difficulty" not in st.session_state:
     st.session_state["club_difficulty"] = pd.DataFrame()
 
-# ------------------------------------------------------------------------------
-# 3. DATA FETCHING & PREPARATION
-# ------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 4. DATA FETCHING & PREPARATION
+# ---------------------------------------------------------------------------
 @st.cache_data(ttl=60 * 60)
 def fetch_fpl_data():
     """
@@ -191,9 +230,7 @@ def prepare_data(data):
         players_df["position"] = players_df["element_type"].map(id_to_position)
 
     # Construct photo URLs
-    players_df["photo_url"] = players_df["photo"].apply(
-        lambda x: construct_photo_url(x)
-    )
+    players_df["photo_url"] = players_df["photo"].apply(lambda x: construct_photo_url(x))
 
     return players_df, clubs_df
 
@@ -260,7 +297,7 @@ def compute_next_fixture_difficulty(clubs_df):
     fix_df["HomeName"] = fix_df["team_h"].map(id_map)
     fix_df["AwayName"] = fix_df["team_a"].map(id_map)
 
-    # Rename difficulty columns for clarity
+    # Rename difficulty columns
     fix_df.rename(columns={
         "team_h_difficulty": "HomeDiff",
         "team_a_difficulty": "AwayDiff"
@@ -287,18 +324,17 @@ def compute_next_fixture_difficulty(clubs_df):
     # Sort by club and kickoff_time to prioritize earliest fixtures
     combined_df.sort_values(by=["club", "kickoff_time"], inplace=True)
 
-    # Drop duplicates, keeping the first (earliest) fixture per club
+    # Drop duplicates, keeping first (earliest) fixture per club
     combined_df = combined_df.drop_duplicates(subset=["club"], keep='first')
 
-    # Rename columns as required
+    # Rename columns
     combined_df.rename(columns={
         "difficulty": "club_next_difficulty",
         "opponent": "club_next_opponent"
     }, inplace=True)
 
-    # Select required columns
+    # Keep columns
     combined_df = combined_df[["club", "club_next_difficulty", "club_next_opponent"]]
-
     return combined_df
 
 def refresh_data():
@@ -312,17 +348,16 @@ def refresh_data():
     if not c_df.empty:
         difficulty_df = compute_next_fixture_difficulty(c_df)
     else:
-        # Ensure 'club_next_opponent' is included even if no data
+        # Ensure 'club_next_opponent' is in columns even if empty
         difficulty_df = pd.DataFrame(columns=["club", "club_next_difficulty", "club_next_opponent"])
 
     st.session_state["raw_fpl_data"] = raw_data
     st.session_state["players"], st.session_state["clubs"] = p_df, c_df
     st.session_state["club_difficulty"] = difficulty_df
 
-# ------------------------------------------------------------------------------
-# 4. PAGE SECTIONS / TABS
-# ------------------------------------------------------------------------------
-
+# ---------------------------------------------------------------------------
+# 5. PAGE SECTIONS / TABS
+# ---------------------------------------------------------------------------
 def hero_banner():
     st.markdown(
         """
@@ -342,56 +377,42 @@ def instructions_expander():
         **Navigation**:
         - The app is organized into different **Tabs** below.
         - Each tab has a unique feature: from 'Overview' to 'Best XI'.
-        
+
         **Data Refresh**:
         - Click the **floating refresh button** at the top-right 
           corner to re-fetch the latest FPL data & fixture difficulties.
-        
+
         **Key Features**:
         - **Overview**: Explore top players by various metrics.
         - **Search Player**: Search by last name substring (and see player images).
         - **Compare Clubs**: Compare aggregated stats between two clubs.
-        - **Compare Players**: Compare multiple players side by side (with photos and a comparison chart).
+        - **Compare Players**: Compare multiple players side by side (with photos and a chart).
         - **Best Players**: Position-based top performers by advanced metrics.
         - **Advanced Explorer**: Pick any numeric columns for a custom scatter plot.
-        - **Best XI**: Incorporates next fixture difficulty and opponent into the scoring formula 
-          (1-4-3-3 formation).
-        
+        - **Best XI**: Incorporates next fixture difficulty and opponent into the scoring formula (1-4-3-3 formation).
+        - **Ask Llama**: Interact with the Meta-Llama model.
+
         Enjoy exploring the data!
         """)
 
-# --- 4a. Overview ---
+# ------------------ 5a. Overview ------------------
 def tab_overview(players_df):
-    """
-    Enhanced Overview:
-    1) Lets users pick a 'metric' to rank players (e.g., 'total_points', 'goals_scored', etc.).
-    2) Allows a slider to choose how many top players to display (from 5 up to 50).
-    3) Displays a bar chart + a detailed stats table with the chosen top players.
-    """
     st.markdown("## Overview: Explore Top Performers by Your Preferred Metric")
-    
-    # If there's no data, bail out
+
     if players_df.empty:
         st.warning("No player data available.")
         return
-    
-    # Define a few interesting metrics users might want to sort by
+
     metric_options = [
         "total_points", "goals_scored", "assists", 
         "clean_sheets", "minutes_played", "popularity", 
         "cost", "form"
     ]
-    
-    # Let the user pick which metric to rank by
     chosen_metric = st.selectbox("Choose a Metric to Rank Players By:", metric_options, index=0)
-    
-    # Let the user pick how many players to display
     top_n = st.slider("How many top players to display?", min_value=5, max_value=50, value=10)
-    
-    # Sort players by the chosen metric (descending) and pick top_n
+
     top_players = players_df.sort_values(by=chosen_metric, ascending=False).head(top_n)
     
-    # Display a bar chart
     st.write(f"### Top {top_n} Players by **{chosen_metric.replace('_', ' ').title()}**")
     fig = px.bar(
         top_players,
@@ -404,7 +425,6 @@ def tab_overview(players_df):
     fig.update_layout(template="plotly_dark", xaxis_title="Player", yaxis_title=chosen_metric.replace('_', ' ').title())
     st.plotly_chart(fig)
     
-    # Display a stats table
     st.write("### Detailed Stats Table")
     st.dataframe(
         top_players[
@@ -418,7 +438,7 @@ def tab_overview(players_df):
         height=600
     )
 
-# --- 4b. Search Player (with Images) ---
+# ------------------ 5b. Search Player ------------------
 def tab_search_player(players_df):
     st.markdown("## Search for a Player")
     if players_df.empty:
@@ -434,7 +454,6 @@ def tab_search_player(players_df):
             st.write(f"**Found {len(results)} player(s).**")
             for idx, row in results.iterrows():
                 photo_url = row.get("photo_url", "https://via.placeholder.com/110x140.png?text=No+Image")
-
                 st.markdown(f"### {row['first_name']} {row['last_name']}")
                 colA, colB = st.columns([1,2])
                 with colA:
@@ -450,7 +469,7 @@ def tab_search_player(players_df):
                     st.write(f"**Popularity**: {row['popularity']}%")
                 st.markdown("---")
 
-# --- 4c. Compare Clubs ---
+# ------------------ 5c. Compare Clubs ------------------
 def tab_team_comparison(players_df, clubs_df):
     st.markdown("## Compare Two Clubs")
     if players_df.empty or clubs_df.empty:
@@ -488,34 +507,26 @@ def tab_team_comparison(players_df, clubs_df):
         fig.update_layout(template="plotly_dark")
         st.plotly_chart(fig)
 
-# --- 4d. Compare Players (Multi-select with Photos and Graph) ---
+# ------------------ 5d. Compare Players ------------------
 def tab_compare_players(players_df):
-    """
-    Allows the user to select multiple players from a dropdown,
-    display each player's photo/stats, AND create a grouped bar chart
-    comparing key metrics among all selected players.
-    """
     st.markdown("## Compare Players")
 
     if players_df.empty:
         st.warning("No player data available.")
         return
 
-    # Sort by last_name for an easier selection
     player_list = sorted(players_df["last_name"].unique().tolist())
     selected_players = st.multiselect(
         "Select one or more players to compare:",
         options=player_list
     )
-
     if not selected_players:
         st.info("No players selected.")
         return
 
-    # Filter the main DataFrame
     selected_df = players_df[players_df["last_name"].isin(selected_players)].copy()
 
-    # Cap the display at 5 players (to keep layout manageable)
+    # Cap the display at 5 players
     n_players = len(selected_df)
     max_cols = min(n_players, 5)
 
@@ -523,14 +534,11 @@ def tab_compare_players(players_df):
         st.warning("Displaying first 5 players only for side-by-side layout.")
         selected_df = selected_df.head(5)
 
-    # Display each selected player's info in columns
     cols = st.columns(max_cols)
     for idx, (i, row) in enumerate(selected_df.iterrows()):
         col_index = idx % max_cols
         with cols[col_index]:
-            # Construct the player photo URL
             photo_url = row.get("photo_url", "https://via.placeholder.com/110x140.png?text=No+Image")
-
             st.image(photo_url, width=110)
             st.markdown(f"### {row['first_name']} {row['last_name']}")
             st.write(f"**Club**: {row['club']}")
@@ -545,10 +553,7 @@ def tab_compare_players(players_df):
     st.write("---")
     st.markdown("### Comparison Chart")
 
-    # Decide which metrics to compare in the bar chart
     metrics = ["total_points", "goals_scored", "assists", "clean_sheets", "cost"]
-
-    # Build a comparison DataFrame with rows = metrics, columns = players
     chart_data = {"Metric": metrics}
     for idx, (i, row) in enumerate(selected_df.iterrows()):
         player_name = f"{row['first_name']} {row['last_name']}"
@@ -556,12 +561,10 @@ def tab_compare_players(players_df):
         chart_data[player_name] = values
 
     comparison_df = pd.DataFrame(chart_data)
-
-    # Use Plotly Express to create a grouped bar chart
     fig_comp = px.bar(
         comparison_df,
         x="Metric",
-        y=list(comparison_df.columns.drop("Metric")),  # All player columns
+        y=list(comparison_df.columns.drop("Metric")),
         barmode="group",
         title="Key Metrics Comparison",
         labels={"value": "Value", "variable": "Player"},
@@ -570,7 +573,7 @@ def tab_compare_players(players_df):
     fig_comp.update_layout(legend_title_text="Players")
     st.plotly_chart(fig_comp)
 
-# --- 4e. Best Players ---
+# ------------------ 5e. Best Players ------------------
 def tab_best_players(players_df):
     st.markdown("## Best Players by Position")
     if players_df.empty or "position" not in players_df.columns:
@@ -608,7 +611,7 @@ def tab_best_players(players_df):
 
     st.dataframe(top_10[["first_name", "last_name", "club", "position"] + relevant_metrics])
 
-# --- 4f. Advanced Explorer ---
+# ------------------ 5f. Advanced Explorer ------------------
 def tab_advanced(players_df):
     st.markdown("## Advanced Explorer (Scatter Plot)")
     if players_df.empty:
@@ -645,61 +648,52 @@ def tab_advanced(players_df):
     fig.update_layout(title=f"{x_metric.replace('_', ' ').title()} vs {y_metric.replace('_', ' ').title()}")
     st.plotly_chart(fig)
 
-# --- 4g. Best XI with Difficulty and Opponent ---
-# --- 4g. Best XI with Difficulty and Opponent (Updated) ---
+# ------------------ 5g. Best XI ------------------
 def tab_best_xi(players_df, difficulty_df):
     """
-    Allows users to select a formation, computes the Best XI based on the formation,
-    incorporates next fixture difficulty and opponent into the scoring formula,
-    and visualizes the squad on a football pitch.
+    Allows users to select a formation, computes the Best XI,
+    and visualizes it on a football pitch. 
+    Incorporates fixture difficulty + excludes suspended players.
     """
     st.markdown("## Best XI with Formation Selection")
     if players_df.empty or "position" not in players_df.columns:
         st.warning("No player data or missing 'position' info.")
         return
 
-    # Define available formations
+    # 1) EXCLUDE SUSPENDED PLAYERS
+    # If status=='s' => suspended, remove them.
+    players_df = players_df[players_df["status"] != "s"]
+
     formations = {
         '1-4-3-3': {'Goalkeeper':1, 'Defender':4, 'Midfielder':3, 'Forward':3},
         '1-4-4-2': {'Goalkeeper':1, 'Defender':4, 'Midfielder':4, 'Forward':2},
         '1-5-3-2': {'Goalkeeper':1, 'Defender':5, 'Midfielder':3, 'Forward':2},
         '1-5-4-1': {'Goalkeeper':1, 'Defender':5, 'Midfielder':4, 'Forward':1},
         '1-4-5-1': {'Goalkeeper':1, 'Defender':4, 'Midfielder':5, 'Forward':1},
-        # Add more formations as needed
     }
-
-    # Let user select a formation
-    selected_formation = st.selectbox("Select Formation:", options=list(formations.keys()), index=1)  # Default to '1-3-5-1'
+    selected_formation = st.selectbox("Select Formation:", options=list(formations.keys()), index=0)
     formation_structure = formations[selected_formation]
 
-    # If difficulty_df is empty, fallback to default values
+    # If difficulty is empty, fallback to default
     if difficulty_df.empty:
         players_df["club_next_difficulty"] = 3
         players_df["club_next_opponent"] = "Unknown"
     else:
-        # Merge on 'club' to include difficulty and opponent info
-        players_df = players_df.merge(
-            difficulty_df,
-            on="club",
-            how="left"
-        )
+        players_df = players_df.merge(difficulty_df, on="club", how="left")
         players_df["club_next_difficulty"] = players_df["club_next_difficulty"].fillna(3)
         players_df["club_next_opponent"] = players_df["club_next_opponent"].fillna("Unknown")
 
-    # Weighted formula for Best XI scoring
-    # Assuming lower difficulty means easier fixture, hence higher score
+    # Weighted formula for picking best XI
     players_df["score_for_best_xi"] = (
-        players_df["total_points"] 
-        + 1.5 * players_df["form"] 
-        + 3.0 / players_df["club_next_difficulty"]  # Inverted difficulty
+        players_df["total_points"]
+        + 1.5 * players_df["form"]
+        + 3.0 / players_df["club_next_difficulty"]  # inversely depends on difficulty
     )
 
-    # Function to pick top N players per position
     def pick_top_n(position, n):
         subset = players_df[players_df["position"] == position]
         return subset.sort_values("score_for_best_xi", ascending=False).head(n)
 
-    # Select players based on the chosen formation
     selected_players = []
     for pos, count in formation_structure.items():
         top_players = pick_top_n(pos, count)
@@ -707,23 +701,17 @@ def tab_best_xi(players_df, difficulty_df):
             st.warning(f"Not enough players available for position: {pos}. Needed {count}, found {len(top_players)}.")
         selected_players.append(top_players)
 
-    # Combine into Best XI
     best_11 = pd.concat(selected_players, ignore_index=True)
 
-    # Assign coordinates based on formation
     def assign_coordinates(best_11_df, formation):
         coordinates = []
         pos_counters = {"Goalkeeper": 0, "Defender": 0, "Midfielder": 0, "Forward": 0}
-
-        # Define x positions based on roles
         x_positions = {
             'Goalkeeper': 5,
             'Defender': 30,
             'Midfielder': 50,
             'Forward': 70
         }
-
-        # Define y ranges based on formation
         y_ranges = {
             'Defender': {
                 3: [20, 40, 60],
@@ -749,12 +737,11 @@ def tab_best_xi(players_df, difficulty_df):
                 x, y = x_positions[pos], 50
             else:
                 total = formation_structure[pos]
-                if pos == "Defender":
-                    y = y_ranges[pos].get(total, [50])[count]
-                elif pos == "Midfielder":
-                    y = y_ranges[pos].get(total, [50])[count]
-                elif pos == "Forward":
-                    y = y_ranges[pos].get(total, [50])[count]
+                y_candidates = y_ranges.get(pos, {}).get(total, [50])
+                if count < len(y_candidates):
+                    y = y_candidates[count]
+                else:
+                    y = 50
                 x = x_positions[pos]
             coordinates.append((x, y))
             pos_counters[pos] += 1
@@ -766,7 +753,6 @@ def tab_best_xi(players_df, difficulty_df):
 
     best_11 = assign_coordinates(best_11, selected_formation)
 
-    # Fetch and cache player images
     @st.cache_data(show_spinner=False)
     def get_player_image(url):
         try:
@@ -775,59 +761,61 @@ def tab_best_xi(players_df, difficulty_df):
             img = Image.open(BytesIO(response.content))
             return img
         except:
-            # Return a placeholder image in case of error
             return Image.open(BytesIO(requests.get("https://via.placeholder.com/60x80.png?text=No+Image").content))
 
-    # Create football pitch using mplsoccer
+    # Plot pitch
     pitch = Pitch(pitch_type='statsbomb', pitch_color='#2b2b2b', line_color='white', linewidth=2)
     fig, ax = pitch.draw(figsize=(10, 6))
 
-    # Plot player images and annotations
     for idx, row in best_11.iterrows():
         img = get_player_image(row['photo_url'])
-        # Resize image to fit the pitch
-        img = img.resize((60, 80))  # Adjust size as needed
-
-        # Convert PIL image to NumPy array
+        img = img.resize((60, 80)) 
         img_np = np.array(img)
 
-        # Calculate position: convert x and y from percentage to pitch coordinates
-        # mplsoccer uses a range of 0 to 120 for x and 0 to 80 for y by default
-        # So, we need to map x:0-100 to 0-120 and y:0-100 to 0-80
+        # map x(0-100)->(0-120), y(0-100)->(0-80)
         x_pitch = (row['x'] / 100) * 120
         y_pitch = (row['y'] / 100) * 80
 
-        # Add image to the pitch
         imagebox = OffsetImage(img_np, zoom=0.6)
         ab = AnnotationBbox(imagebox, (x_pitch, y_pitch),
                             frameon=False, box_alignment=(0.5, 0.5))
         ax.add_artist(ab)
 
-    # Display the pitch with players
     st.pyplot(fig)
 
-    # Display Detailed Best XI Table Including Opponent
     st.write("### Detailed Best XI Table")
     columns_to_show = [
-        "first_name", "last_name", "club", "position", "total_points", "form",
-        "club_next_difficulty", "club_next_opponent", "score_for_best_xi",
-        "goals_scored", "assists", "clean_sheets", "cost"
+        "first_name", "last_name", "club", "position", "status", 
+        "total_points", "form", "club_next_difficulty", "club_next_opponent", 
+        "score_for_best_xi", "goals_scored", "assists", "clean_sheets", "cost"
     ]
     st.dataframe(best_11[columns_to_show].reset_index(drop=True))
 
+# ------------------ 5h. Ask Llama ------------------
+def tab_ask_llama():
+    """
+    A simple tab to interact with the Meta-Llama model.
+    """
+    st.markdown("## Ask Llama")
+    st.write("Ask the Meta-Llama model any question, or have it analyze your data in a natural language prompt.")
 
-# ------------------------------------------------------------------------------
-# 5. MAIN APP
-# ------------------------------------------------------------------------------
+    user_prompt = st.text_area("Enter your prompt for Llama here:")
+    if st.button("Send Prompt"):
+        with st.spinner("Thinking..."):
+            response = ask_llama(user_prompt, max_tokens=600)
+        st.write("### Response:")
+        st.write(response)
+
+# ---------------------------------------------------------------------------
+# 6. MAIN APP
+# ---------------------------------------------------------------------------
 if "players" not in st.session_state or st.session_state["players"].empty:
     with st.spinner("Fetching and processing data..."):
         refresh_data()
 
-# Hero Banner & Intro
 hero_banner()
 instructions_expander()
 
-# Tabs (Includes 'Compare Players' but no full fixtures tab)
 tab_labels = [
     "Overview", 
     "Search Player", 
@@ -835,7 +823,8 @@ tab_labels = [
     "Compare Players",
     "Best Players", 
     "Advanced Explorer", 
-    "Best XI"
+    "Best XI",
+    "Ask Llama"  # new tab for your AI model
 ]
 tabs = st.tabs(tab_labels)
 
@@ -853,6 +842,8 @@ with tabs[5]:
     tab_advanced(st.session_state["players"])
 with tabs[6]:
     tab_best_xi(st.session_state["players"], st.session_state["club_difficulty"])
+with tabs[7]:
+    tab_ask_llama()
 
 # Floating Refresh Button
 st.markdown(
